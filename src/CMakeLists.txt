@@ -1,9 +1,9 @@
 # Core library
 add_library(kaisei-core
     core/module.cpp
-    # core/preset.cpp  # TODO
-    # core/moduleLoader.cpp  # TODO
-    # core/presetLoader.cpp  # TODO
+    core/preset.cpp
+    core/moduleLoader.cpp
+    core/presetLoader.cpp
     # core/registry.cpp  # TODO
 )
 

@@ -21,3 +21,5 @@ kaisei
 
 # User config (for development)
 .cache/
+
+plan.md

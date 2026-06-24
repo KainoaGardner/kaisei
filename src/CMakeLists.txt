@@ -4,7 +4,7 @@ add_library(kaisei-core
     core/preset.cpp
     core/moduleLoader.cpp
     core/presetLoader.cpp
-    # core/registry.cpp  # TODO
+    core/registry.cpp
 )
 
 target_include_directories(kaisei-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

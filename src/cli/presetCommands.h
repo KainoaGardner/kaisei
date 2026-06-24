@@ -1,0 +1,20 @@
+#pragma once
+
+#include <CLI/CLI.hpp>
+#include "core/registry.h"
+
+namespace kaisei::cli {
+
+class PresetCommands {
+public:
+    static void setup(CLI::App* preset, core::Registry& registry);
+
+private:
+    static void create(core::Registry& registry, const std::string& name, const std::string& version, const std::string& description);
+    static void add(core::Registry& registry, const std::string& name, const std::string& module, const std::vector<std::string>& overrides);
+    static void remove(core::Registry& registry, const std::string& name, size_t index);
+    static void list(core::Registry& registry);
+    static void show(core::Registry& registry, const std::string& name);
+};
+
+} // namespace kaisei::cli

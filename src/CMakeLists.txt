@@ -65,25 +65,25 @@ target_link_libraries(kaisei-core PUBLIC tomlplusplus::tomlplusplus spdlog::spdl
 #     tomlplusplus::tomlplusplus
 # )
 
-# CLI library (TODO)
-# add_library(kaisei-cli
-#     cli/cli.cpp
-#     cli/moduleCommands.cpp
-#     cli/presetCommands.cpp
-#     cli/previewCommands.cpp
-# )
+# CLI library
+add_library(kaisei-cli
+    cli/cli.cpp
+    cli/moduleCommands.cpp
+    cli/presetCommands.cpp
+    # cli/previewCommands.cpp  # TODO
+)
 
-# target_include_directories(kaisei-cli PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# target_link_libraries(kaisei-cli PUBLIC
-#     kaisei-core
-#     kaisei-integration
-#     CLI11::CLI11
-#     spdlog::spdlog
-# )
+target_include_directories(kaisei-cli PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(kaisei-cli PUBLIC
+    kaisei-core
+    # kaisei-integration  # TODO
+    CLI11::CLI11
+    spdlog::spdlog
+)
 
-# Main executable (TODO)
-# add_executable(kaisei main.cpp)
-# target_link_libraries(kaisei PRIVATE kaisei-cli)
+# Main executable
+add_executable(kaisei main.cpp)
+target_link_libraries(kaisei PRIVATE kaisei-cli)
 
-# Install executable (TODO)
-# install(TARGETS kaisei DESTINATION bin)
+# Install executable
+install(TARGETS kaisei DESTINATION bin)

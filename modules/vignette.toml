@@ -1,0 +1,35 @@
+[module]
+name = "vignette"
+version = "1.2.1"
+author = "kaisei contributors"
+description = "Darken edges for cinematic effect"
+tags = ["atmosphere", "cinematic", "basic"]
+type = "module"
+
+[shader]
+file = "vignette.frag"
+fusible = true
+fusion_priority = 10
+input_variable = "inputColor"
+output_variable = "fragColor"
+
+[[uniforms]]
+name = "u_strength"
+type = "float"
+default = "0.5"
+description = "Vignette darkness intensity"
+min = 0.0
+max = 1.0
+
+[[uniforms]]
+name = "u_radius"
+type = "float"
+default = "0.8"
+description = "Vignette radius from center"
+min = 0.0
+max = 1.5
+
+[[textures]]
+name = "u_inputTexture"
+description = "Input image/frame"
+optional = false

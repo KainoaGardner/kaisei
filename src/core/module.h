@@ -42,6 +42,7 @@ struct ModuleMetadata {
     std::vector<UniformDeclaration> uniforms;
     std::vector<TextureInput> textures;
 
+    std::string shaderFile;
     bool fusible;
     int fusionPriority;
     std::string inputVariable;

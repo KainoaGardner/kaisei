@@ -28,7 +28,7 @@ Module::Module(const std::filesystem::path& moduleFile) : modulePath_(moduleFile
 
     loadMetadata(moduleFile);
 
-    auto shaderFile = modulePath_ / metadata_.name;
+    auto shaderFile = modulePath_ / metadata_.shaderFile;
     loadShader(shaderFile);
 
     spdlog::info("Loaded module: {} ({})", metadata_.name, metadata_.description);
@@ -54,6 +54,7 @@ void Module::loadMetadata(const std::filesystem::path& tomlFile) {
         metadata_.type = parseEffectType(typeStr);
 
         auto shader = config["shader"];
+        metadata_.shaderFile = shader["file"].value_or<std::string>("");
         metadata_.fusible = shader["fusible"].value_or(true);
         metadata_.fusionPriority = shader["fusion_priority"].value_or(0);
         metadata_.inputVariable = shader["input_variable"].value_or<std::string>("inputColor");

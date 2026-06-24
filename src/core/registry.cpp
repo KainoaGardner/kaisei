@@ -34,10 +34,22 @@ void Registry::loadDefaultPaths() {
 
     std::filesystem::path home(homeDir);
 
-    addModuleSearchPath("/usr/share/kaisei/modules");
-    addModuleSearchPath(home / ".local/share/kaisei/modules");
+    std::filesystem::path currentPath = std::filesystem::current_path();
+    std::filesystem::path repoModules = currentPath.parent_path() / "modules";
+    std::filesystem::path repoExamples = currentPath.parent_path() / "examples" / "presets";
 
-    addPresetSearchPath("/usr/share/kaisei/presets");
+    if (std::filesystem::exists(repoModules)) {
+        addModuleSearchPath(repoModules);
+        spdlog::debug("Added development module path: {}", repoModules.string());
+    }
+    if (std::filesystem::exists(repoExamples)) {
+        addPresetSearchPath(repoExamples);
+        spdlog::debug("Added development preset path: {}", repoExamples.string());
+    }
+
+    addModuleSearchPath("/usr/share/kaisei/modules");
+
+    addModuleSearchPath(home / ".local/share/kaisei/modules");
     addPresetSearchPath(home / ".config/kaisei/presets");
 
     setPresetSavePath(home / ".config/kaisei/presets");

@@ -1,0 +1,23 @@
+# Build artifacts
+build/
+cmake-build-*/
+compile_commands.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Generated files
+*.o
+*.so
+*.a
+*.dylib
+
+# Executables
+kaisei
+
+# User config (for development)
+.cache/

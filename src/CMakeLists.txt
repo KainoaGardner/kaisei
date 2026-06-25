@@ -30,19 +30,31 @@ target_link_libraries(kaisei-core PUBLIC tomlplusplus::tomlplusplus spdlog::spdl
 #     spdlog::spdlog
 # )
 
-# Backend library - Rendering API abstraction (OpenGL/Vulkan) (TODO)
-# add_library(kaisei-backend
-#     backend/openGLBackend.cpp
-#     backend/backendFactory.cpp
-# )
+# Backend library - Rendering API abstraction (OpenGL/Vulkan)
+add_library(kaisei-backend
+    backend/openGLBackend.cpp
+)
 
-# target_include_directories(kaisei-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# target_link_libraries(kaisei-backend PUBLIC
-#     OpenGL::GL
-#     glfw
-#     stb_image
-#     spdlog::spdlog
-# )
+target_include_directories(kaisei-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(kaisei-backend PUBLIC
+    OpenGL::GL
+    glad
+    glfw
+    stb_image
+    spdlog::spdlog
+)
+
+# Renderer library - Multi-pass rendering
+add_library(kaisei-renderer
+    renderer/multiPassRenderer.cpp
+)
+
+target_include_directories(kaisei-renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(kaisei-renderer PUBLIC
+    kaisei-core
+    kaisei-backend
+    spdlog::spdlog
+)
 
 # Integration library - Output targets (Preview/Hyprland/Steam Frame) (TODO)
 # add_library(kaisei-integration

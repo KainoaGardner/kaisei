@@ -1,0 +1,171 @@
+#include "renderer/multiPassRenderer.h"
+
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
+
+#include <spdlog/spdlog.h>
+
+namespace kaisei::renderer {
+
+namespace {
+
+std::string readFile(const std::string& path) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open file: " + path);
+    }
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
+
+} 
+
+MultiPassRenderer::MultiPassRenderer(backend::Backend& backend, core::ModuleLoader& moduleLoader)
+    : backend_(backend), moduleLoader_(moduleLoader), vertexShader_(0), currentPreset_(nullptr) {
+
+    vertexShaderSource_ = readFile("shaders/vertex.vert");
+    vertexShader_ = backend_.compileShader(vertexShaderSource_, backend::Backend::VERTEX_SHADER);
+
+    spdlog::debug("MultiPassRenderer initialized");
+}
+
+MultiPassRenderer::~MultiPassRenderer() {
+    cleanupPasses();
+    cleanupFramebuffers();
+
+    if (vertexShader_) {
+        backend_.deleteProgram(vertexShader_);
+    }
+}
+
+void MultiPassRenderer::loadPreset(const core::Preset& preset) {
+    cleanupPasses();
+    cleanupFramebuffers();
+
+    currentPreset_ = &preset;
+
+    // Compile shader for each module
+    for (const auto& module : preset.modules()) {
+        compilePass(module.moduleName);
+    }
+
+    spdlog::info("Loaded preset '{}' with {} passes", preset.name(), passes_.size());
+}
+
+void MultiPassRenderer::compilePass(const std::string& moduleName) {
+    const auto* module = moduleLoader_.getModule(moduleName);
+    if (!module) {
+        spdlog::error("Module '{}' not found", moduleName);
+        throw std::runtime_error("Module not found: " + moduleName);
+    }
+
+    uint32_t fragShader = backend_.compileShader(
+        module->shaderSource(),
+        backend::Backend::FRAGMENT_SHADER
+    );
+
+    uint32_t program = backend_.linkProgram(vertexShader_, fragShader);
+
+    passes_.push_back({program, moduleName});
+
+    spdlog::debug("Compiled pass for module '{}'", moduleName);
+}
+
+uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32_t height) {
+    if (passes_.empty()) {
+        spdlog::warn("No passes to render");
+        return inputTexture;
+    }
+
+    while (framebuffers_.size() < 2) {
+        framebuffers_.push_back(backend_.createFramebuffer(width, height));
+    }
+
+    uint32_t currentInput = inputTexture;
+    uint32_t currentFBO = 0;
+
+    for (size_t i = 0; i < passes_.size(); ++i) {
+        const auto& pass = passes_[i];
+
+        if (i == passes_.size() - 1) {
+            currentFBO = 0;
+        } else {
+            currentFBO = framebuffers_[i % 2];
+        }
+
+        if (currentFBO == 0) {
+            backend_.unbindFramebuffer();
+        } else {
+            backend_.bindFramebuffer(currentFBO);
+        }
+
+        backend_.setViewport(0, 0, width, height);
+        backend_.clear(0.0f, 0.0f, 0.0f, 1.0f);
+
+        backend_.useProgram(pass.program);
+
+        backend_.bindTexture(currentInput, 0);
+        backend_.setUniformInt(pass.program, "u_inputTexture", 0);
+
+        if (currentPreset_) {
+            for (const auto& module : currentPreset_->modules()) {
+                if (module.moduleName == pass.moduleName) {
+                    for (const auto& [name, value] : module.uniformOverrides) {
+                        try {
+                            float fvalue = std::stof(value);
+                            backend_.setUniformFloat(pass.program, name, fvalue);
+                        } catch (...) {
+                            try {
+                                int ivalue = std::stoi(value);
+                                backend_.setUniformInt(pass.program, name, ivalue);
+                            } catch (...) {
+                                spdlog::warn("Failed to parse uniform '{}' value '{}'", name, value);
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        backend_.drawFullscreenQuad();
+
+        if (i < passes_.size() - 1) {
+            currentInput = backend_.getFramebufferTexture(currentFBO);
+        }
+    }
+
+    if (passes_.size() == 1) {
+        return backend_.getFramebufferTexture(framebuffers_[0]);
+    } else {
+        return backend_.getFramebufferTexture(framebuffers_[(passes_.size() - 2) % 2]);
+    }
+}
+
+void MultiPassRenderer::reload() {
+    if (!currentPreset_) {
+        return;
+    }
+
+    spdlog::info("Reloading preset '{}'", currentPreset_->name());
+    loadPreset(*currentPreset_);
+}
+
+void MultiPassRenderer::cleanupPasses() {
+    for (auto& pass : passes_) {
+        backend_.deleteProgram(pass.program);
+    }
+    passes_.clear();
+}
+
+void MultiPassRenderer::cleanupFramebuffers() {
+    for (auto fbo : framebuffers_) {
+        backend_.deleteFramebuffer(fbo);
+    }
+    framebuffers_.clear();
+}
+
+} // namespace kaisei::renderer

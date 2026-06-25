@@ -61,20 +61,34 @@ void OpenGLBackend::shutdown() {
 
 uint32_t OpenGLBackend::compileShader(const std::string& source, uint32_t type) {
     GLenum glType = (type == VERTEX_SHADER) ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER;
+    const char* typeName = (type == VERTEX_SHADER) ? "vertex" : "fragment";
 
     GLuint shader = glCreateShader(glType);
     const char* src = source.c_str();
     glShaderSource(shader, 1, &src, nullptr);
     glCompileShader(shader);
 
+
+    GLint logLength = 0;
+    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
+    std::string logMessage;
+    if (logLength > 1) {
+        std::vector<GLchar> infoLog(logLength);
+        glGetShaderInfoLog(shader, logLength, nullptr, infoLog.data());
+        logMessage = std::string(infoLog.data());
+    }
+
     GLint success;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
     if (!success) {
-        GLchar infoLog[1024];
-        glGetShaderInfoLog(shader, 1024, nullptr, infoLog);
-        spdlog::error("Shader compilation failed: {}", infoLog);
+        spdlog::error("Shader compilation failed ({} shader): {}", typeName,
+                      logMessage.empty() ? "No error log" : logMessage);
         glDeleteShader(shader);
-        throw std::runtime_error("Shader compilation failed: " + std::string(infoLog));
+        throw std::runtime_error("Shader compilation failed: " +
+                               (logMessage.empty() ? "No error log" : logMessage));
+    } else if (!logMessage.empty()) {
+        // Success but has warnings
+        spdlog::warn("Shader compilation warning ({} shader): {}", typeName, logMessage);
     }
 
     return shader;
@@ -88,12 +102,27 @@ uint32_t OpenGLBackend::linkProgram(uint32_t vertexShader, uint32_t fragmentShad
 
     GLint success;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
+
+    // Get log if available
+    GLint logLength = 0;
+    glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+    std::string logMessage;
+    if (logLength > 1) {
+        std::vector<GLchar> infoLog(logLength);
+        glGetProgramInfoLog(program, logLength, nullptr, infoLog.data());
+        logMessage = std::string(infoLog.data());
+    }
+
+    // Check success FIRST, regardless of log
     if (!success) {
-        GLchar infoLog[1024];
-        glGetProgramInfoLog(program, 1024, nullptr, infoLog);
-        spdlog::error("Program linking failed: {}", infoLog);
+        spdlog::error("Program linking failed: {}",
+                      logMessage.empty() ? "No error log" : logMessage);
         glDeleteProgram(program);
-        throw std::runtime_error("Program linking failed: " + std::string(infoLog));
+        throw std::runtime_error("Program linking failed: " +
+                               (logMessage.empty() ? "No error log" : logMessage));
+    } else if (!logMessage.empty()) {
+        // Success but has warnings
+        spdlog::warn("Program linking warning: {}", logMessage);
     }
 
     glDeleteShader(vertexShader);

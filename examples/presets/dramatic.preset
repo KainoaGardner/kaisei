@@ -1,0 +1,25 @@
+[preset]
+name = "dramatic"
+description = "High contrast dramatic look"
+version = "1.0"
+
+[[modules]]
+name = "saturation"
+[modules.uniforms]
+u_saturation = "0.7"
+
+[[modules]]
+name = "contrast"
+[modules.uniforms]
+u_contrast = "1.6"
+
+[[modules]]
+name = "brightness"
+[modules.uniforms]
+u_brightness = "-0.1"
+
+[[modules]]
+name = "vignette"
+[modules.uniforms]
+u_strength = "0.8"
+u_radius = "0.6"

@@ -1,0 +1,27 @@
+[module]
+name = "contrast"
+version = "1.0.0"
+author = "kaisei contributors"
+description = "Adjust image contrast"
+category = "color"
+tags = ["color", "contrast"]
+type = "module"
+
+[shader]
+file = "contrast.frag"
+fusible = true
+fusion_priority = 0
+input_variable = "inputColor"
+output_variable = "fragColor"
+
+[dependencies]
+requires = []
+conflicts = []
+
+[[uniforms]]
+name = "u_contrast"
+type = "float"
+default = "1.0"
+description = "Contrast multiplier (0.0 to 2.0)"
+min = 0.0
+max = 2.0

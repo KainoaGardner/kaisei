@@ -1,15 +1,16 @@
 [module]
 name = "anime"
-version = "2.0.0"
+version = "1.0.0"
 author = "kaisei contributors"
 description = "Anime-style cel shading with edge detection"
-tags = ["stylization", "anime", "cel-shading"]
+category = "stylization"
+tags = ["anime", "cel-shading", "stylization"]
 type = "module"
 
 [shader]
 file = "anime.frag"
 fusible = true
-fusion_priority = 5
+fusion_priority = 0
 input_variable = "inputColor"
 output_variable = "fragColor"
 
@@ -18,20 +19,20 @@ requires = []
 conflicts = ["toon"]
 
 [[uniforms]]
-name = "u_shadeSteps"
-type = "int"
-default = "3"
-description = "Number of discrete shading levels"
-min = 2
-max = 10
-
-[[uniforms]]
 name = "u_edgeThickness"
 type = "float"
 default = "0.002"
 description = "Thickness of cel-shading edges"
 min = 0.0
 max = 0.01
+
+[[uniforms]]
+name = "u_shadeSteps"
+type = "int"
+default = "3"
+description = "Number of shading levels"
+min = 2
+max = 10
 
 [[textures]]
 name = "u_inputTexture"

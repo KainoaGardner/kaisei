@@ -18,6 +18,7 @@ private:
     void setupGlobalOptions();
     void setupPresetCommands();
     void setupModuleCommands();
+    void setupPreviewCommands();
 
     std::unique_ptr<CLI::App> app_;
     core::Registry registry_;

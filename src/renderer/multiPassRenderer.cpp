@@ -24,10 +24,14 @@ std::string readFile(const std::string& path) {
 } 
 
 MultiPassRenderer::MultiPassRenderer(backend::Backend& backend, core::ModuleLoader& moduleLoader)
-    : backend_(backend), moduleLoader_(moduleLoader), vertexShader_(0), currentPreset_(nullptr) {
+    : backend_(backend), moduleLoader_(moduleLoader), vertexShader_(0), passthroughProgram_(0), currentPreset_(nullptr) {
 
     vertexShaderSource_ = readFile("shaders/vertex.vert");
     vertexShader_ = backend_.compileShader(vertexShaderSource_, backend::Backend::VERTEX_SHADER);
+
+    std::string passthroughSource = readFile("shaders/passthrough.frag");
+    uint32_t passthroughFrag = backend_.compileShader(passthroughSource, backend::Backend::FRAGMENT_SHADER);
+    passthroughProgram_ = backend_.linkProgram(vertexShader_, passthroughFrag);
 
     spdlog::debug("MultiPassRenderer initialized");
 }
@@ -36,6 +40,9 @@ MultiPassRenderer::~MultiPassRenderer() {
     cleanupPasses();
     cleanupFramebuffers();
 
+    if (passthroughProgram_) {
+        backend_.deleteProgram(passthroughProgram_);
+    }
     if (vertexShader_) {
         backend_.deleteProgram(vertexShader_);
     }
@@ -47,7 +54,6 @@ void MultiPassRenderer::loadPreset(const core::Preset& preset) {
 
     currentPreset_ = &preset;
 
-    // Compile shader for each module
     for (const auto& module : preset.modules()) {
         compilePass(module.moduleName);
     }
@@ -76,7 +82,15 @@ void MultiPassRenderer::compilePass(const std::string& moduleName) {
 
 uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32_t height) {
     if (passes_.empty()) {
-        spdlog::warn("No passes to render");
+        backend_.unbindFramebuffer();
+        backend_.setViewport(0, 0, width, height);
+        backend_.clear(0.0f, 0.0f, 0.0f, 1.0f);
+
+        backend_.useProgram(passthroughProgram_);
+        backend_.bindTexture(inputTexture, 0);
+        backend_.setUniformInt(passthroughProgram_, "u_inputTexture", 0);
+        backend_.drawFullscreenQuad();
+
         return inputTexture;
     }
 
@@ -110,23 +124,43 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
         backend_.bindTexture(currentInput, 0);
         backend_.setUniformInt(pass.program, "u_inputTexture", 0);
 
-        if (currentPreset_) {
-            for (const auto& module : currentPreset_->modules()) {
-                if (module.moduleName == pass.moduleName) {
-                    for (const auto& [name, value] : module.uniformOverrides) {
+        const auto* module = moduleLoader_.getModule(pass.moduleName);
+        if (module) {
+            for (const auto& uniform : module->metadata().uniforms) {
+                if (uniform.defaultValue) {
+                    try {
+                        float fvalue = std::stof(*uniform.defaultValue);
+                        backend_.setUniformFloat(pass.program, uniform.name, fvalue);
+                    } catch (...) {
                         try {
-                            float fvalue = std::stof(value);
-                            backend_.setUniformFloat(pass.program, name, fvalue);
+                            int ivalue = std::stoi(*uniform.defaultValue);
+                            backend_.setUniformInt(pass.program, uniform.name, ivalue);
                         } catch (...) {
-                            try {
-                                int ivalue = std::stoi(value);
-                                backend_.setUniformInt(pass.program, name, ivalue);
-                            } catch (...) {
-                                spdlog::warn("Failed to parse uniform '{}' value '{}'", name, value);
-                            }
+                            spdlog::warn("Failed to parse default uniform '{}' value '{}'",
+                                       uniform.name, *uniform.defaultValue);
                         }
                     }
-                    break;
+                }
+            }
+
+            if (currentPreset_) {
+                for (const auto& presetModule : currentPreset_->modules()) {
+                    if (presetModule.moduleName == pass.moduleName) {
+                        for (const auto& [name, value] : presetModule.uniformOverrides) {
+                            try {
+                                float fvalue = std::stof(value);
+                                backend_.setUniformFloat(pass.program, name, fvalue);
+                            } catch (...) {
+                                try {
+                                    int ivalue = std::stoi(value);
+                                    backend_.setUniformInt(pass.program, name, ivalue);
+                                } catch (...) {
+                                    spdlog::warn("Failed to parse uniform '{}' value '{}'", name, value);
+                                }
+                            }
+                        }
+                        break;
+                    }
                 }
             }
         }

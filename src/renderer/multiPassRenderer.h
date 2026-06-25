@@ -39,6 +39,7 @@ private:
 
     uint32_t vertexShader_;
     std::string vertexShaderSource_;
+    uint32_t passthroughProgram_;
 
     const core::Preset* currentPreset_;
 };

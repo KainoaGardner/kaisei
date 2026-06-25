@@ -133,6 +133,7 @@ std::unique_ptr<Preset> PresetLoader::loadPreset(const std::filesystem::path& fi
 
         auto preset = std::make_unique<Preset>(name, version);
         preset->setDescription(description);
+        preset->setSourcePath(filePath);
 
         if (auto modulesArray = config["modules"].as_array()) {
             for (auto& moduleNode : *modulesArray) {
@@ -222,6 +223,7 @@ Preset* PresetLoader::createPreset(const std::string& name,
     preset->setDescription(description);
 
     auto filePath = getPresetFilePath(name);
+    preset->setSourcePath(filePath);
     savePreset(*preset, filePath);
 
     auto* ptr = preset.get();
@@ -237,7 +239,9 @@ void PresetLoader::save(const std::string& name) {
         throw std::runtime_error("Preset not found: " + name);
     }
 
-    auto filePath = getPresetFilePath(name);
+    auto filePath = it->second->sourcePath().empty()
+                    ? getPresetFilePath(name)
+                    : it->second->sourcePath();
     savePreset(*it->second, filePath);
 }
 
@@ -247,7 +251,10 @@ void PresetLoader::deletePreset(const std::string& name) {
         throw std::runtime_error("Preset not found: " + name);
     }
 
-    auto filePath = getPresetFilePath(name);
+    auto filePath = it->second->sourcePath().empty()
+                    ? getPresetFilePath(name)
+                    : it->second->sourcePath();
+
     if (std::filesystem::exists(filePath)) {
         std::filesystem::remove(filePath);
         spdlog::info("Deleted preset file: {}", filePath.string());

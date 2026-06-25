@@ -1,6 +1,7 @@
 #include "cli/cli.h"
 #include "cli/presetCommands.h"
 #include "cli/moduleCommands.h"
+#include "cli/previewCommands.h"
 
 #include <spdlog/spdlog.h>
 
@@ -21,6 +22,7 @@ void CLIApp::setupCommands() {
     setupGlobalOptions();
     setupModuleCommands();
     setupPresetCommands();
+    setupPreviewCommands();
 }
 
 void CLIApp::setupGlobalOptions() {
@@ -41,6 +43,10 @@ void CLIApp::setupPresetCommands() {
     preset->require_subcommand(1);
 
     PresetCommands::setup(preset, registry_);
+}
+
+void CLIApp::setupPreviewCommands() {
+    PreviewCommands::setup(app_.get(), registry_);
 }
 
 int CLIApp::run(int argc, char** argv) {

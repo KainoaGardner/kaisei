@@ -1,9 +1,10 @@
 [module]
 name = "crt"
-version = "1.5.2"
+version = "1.0.0"
 author = "kaisei contributors"
-description = "CRT monitor effect with scanlines and curvature"
-tags = ["retro", "crt", "stylization"]
+description = "CRT monitor effect with curvature and scanlines"
+category = "retro"
+tags = ["retro", "crt", "scanlines"]
 type = "module"
 
 [shader]
@@ -13,29 +14,25 @@ fusion_priority = 0
 input_variable = "inputColor"
 output_variable = "fragColor"
 
+[dependencies]
+requires = []
+conflicts = []
+
 [[uniforms]]
 name = "u_curvature"
 type = "float"
-default = "0.5"
-description = "Screen curvature amount"
+default = "0.15"
+description = "Screen curvature amount (0.0 to 0.5)"
 min = 0.0
-max = 1.0
+max = 0.5
 
 [[uniforms]]
 name = "u_scanlineIntensity"
 type = "float"
 default = "0.3"
-description = "Scanline darkness"
+description = "Scanline darkness (0.0 to 1.0)"
 min = 0.0
 max = 1.0
-
-[[uniforms]]
-name = "u_scanlineCount"
-type = "float"
-default = "256.0"
-description = "Number of scanlines"
-min = 50.0
-max = 1000.0
 
 [[textures]]
 name = "u_inputTexture"

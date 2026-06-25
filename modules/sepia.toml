@@ -1,0 +1,27 @@
+[module]
+name = "sepia"
+version = "1.0.0"
+author = "kaisei contributors"
+description = "Apply sepia tone effect"
+category = "color"
+tags = ["color", "sepia", "vintage"]
+type = "module"
+
+[shader]
+file = "sepia.frag"
+fusible = true
+fusion_priority = 0
+input_variable = "inputColor"
+output_variable = "fragColor"
+
+[dependencies]
+requires = []
+conflicts = []
+
+[[uniforms]]
+name = "u_intensity"
+type = "float"
+default = "1.0"
+description = "Sepia intensity (0.0 to 1.0)"
+min = 0.0
+max = 1.0

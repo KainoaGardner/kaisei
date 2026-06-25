@@ -175,9 +175,6 @@ void PresetCommands::list(core::Registry& registry) {
         auto* preset = registry.presets().getPreset(name);
         std::cout << utils::bold(std::to_string(i++) + ". ") << name << " " << preset->version() 
                   << utils::bold(" - ") << utils::bold(std::to_string(preset->modules().size())) << utils::bold(" modules\n");
-        if (!preset->description().empty()) {
-            std::cout << "    " << preset->description() << "\n";
-        }
     }
 }
 

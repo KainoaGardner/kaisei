@@ -56,6 +56,21 @@ target_link_libraries(kaisei-renderer PUBLIC
     spdlog::spdlog
 )
 
+# Integration library - Preview window and rendering
+add_library(kaisei-integration
+    integration/preview/previewWindow.cpp
+    integration/preview/previewRenderer.cpp
+)
+
+target_include_directories(kaisei-integration PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(kaisei-integration PUBLIC
+    kaisei-core
+    kaisei-backend
+    kaisei-renderer
+    glfw
+    spdlog::spdlog
+)
+
 # Integration library - Output targets (Preview/Hyprland/Steam Frame) (TODO)
 # add_library(kaisei-integration
 #     integration/preview/previewWindow.cpp
@@ -82,13 +97,13 @@ add_library(kaisei-cli
     cli/cli.cpp
     cli/moduleCommands.cpp
     cli/presetCommands.cpp
-    # cli/previewCommands.cpp  # TODO
+    cli/previewCommands.cpp
 )
 
 target_include_directories(kaisei-cli PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(kaisei-cli PUBLIC
     kaisei-core
-    # kaisei-integration  # TODO
+    kaisei-integration
     CLI11::CLI11
     spdlog::spdlog
 )

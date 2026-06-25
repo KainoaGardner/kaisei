@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <map>
 #include <string>
 #include <vector>
@@ -24,13 +25,16 @@ public:
     const std::string& name() const { return name_; }
     const std::string& version() const { return version_; }
     const std::string& description() const { return description_; }
+    const std::filesystem::path& sourcePath() const { return sourcePath_; }
     void setDescription(const std::string& desc) { description_ = desc; }
     void setVersion(const std::string& version) { version_ = version; }
+    void setSourcePath(const std::filesystem::path& path) { sourcePath_ = path; }
 
 private:
     std::string name_;
     std::string description_;
     std::string version_;
+    std::filesystem::path sourcePath_;
     std::vector<PresetModule> modules_;
 };
 

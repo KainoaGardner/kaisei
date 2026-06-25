@@ -2,8 +2,9 @@
 name = "brightness"
 version = "1.0.0"
 author = "kaisei contributors"
-description = "Simple brightness adjustment"
-tags = ["color", "basic", "adjustment"]
+description = "Adjust image brightness"
+category = "color"
+tags = ["color", "brightness"]
 type = "module"
 
 [shader]
@@ -13,11 +14,15 @@ fusion_priority = 0
 input_variable = "inputColor"
 output_variable = "fragColor"
 
+[dependencies]
+requires = []
+conflicts = []
+
 [[uniforms]]
 name = "u_brightness"
 type = "float"
 default = "0.0"
-description = "Brightness offset (-1.0 to 1.0)"
+description = "Brightness adjustment (-1.0 to 1.0)"
 min = -1.0
 max = 1.0
 

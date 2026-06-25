@@ -4,13 +4,10 @@ in vec2 v_texCoord;
 out vec4 fragColor;
 
 uniform sampler2D u_inputTexture;
-uniform float u_brightness;
 
 void main() {
     vec4 inputColor = texture(u_inputTexture, v_texCoord);
 
-    // Add brightness value to RGB channels
-    vec3 result = inputColor.rgb + u_brightness;
-
-    fragColor = vec4(result, inputColor.a);
+    // Invert RGB, keep alpha
+    fragColor = vec4(1.0 - inputColor.rgb, inputColor.a);
 }

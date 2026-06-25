@@ -8,7 +8,8 @@
 namespace kaisei::integration::preview {
 
 PreviewRenderer::PreviewRenderer(core::Registry& registry)
-    : registry_(registry), sourceTexture_(0), imageWidth_(0), imageHeight_(0) {
+    : registry_(registry), sourceTexture_(0), imageWidth_(0), imageHeight_(0),
+      mouseLeftButton_(false), mouseRightButton_(false) {
 }
 
 PreviewRenderer::~PreviewRenderer() {
@@ -47,6 +48,14 @@ void PreviewRenderer::run(const std::string& imagePath, const std::string& prese
         handleKeyInput(key, action);
     });
 
+    window_->setMousePosCallback([this](double x, double y) {
+        handleMousePos(x, y);
+    });
+
+    window_->setMouseButtonCallback([this](int button, int action) {
+        handleMouseButton(button, action);
+    });
+
     while (!window_->shouldClose()) {
         window_->pollEvents();
 
@@ -77,6 +86,29 @@ void PreviewRenderer::handleKeyInput(int key, int action) {
                 break;
         }
     }
+}
+
+void PreviewRenderer::handleMousePos(double x, double y) {
+    // Normalize mouse position to 0-1 range
+    int fbWidth, fbHeight;
+    window_->getFramebufferSize(fbWidth, fbHeight);
+
+    float normalizedX = static_cast<float>(x) / static_cast<float>(fbWidth);
+    float normalizedY = static_cast<float>(y) / static_cast<float>(fbHeight);
+
+    renderer_->setMousePosition(normalizedX, normalizedY);
+}
+
+void PreviewRenderer::handleMouseButton(int button, int action) {
+    bool pressed = (action == GLFW_PRESS);
+
+    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        mouseLeftButton_ = pressed;
+    } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+        mouseRightButton_ = pressed;
+    }
+
+    renderer_->setMouseButtons(mouseLeftButton_, mouseRightButton_);
 }
 
 } // namespace kaisei::integration::preview

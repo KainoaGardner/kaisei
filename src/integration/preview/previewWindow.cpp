@@ -35,6 +35,8 @@ PreviewWindow::PreviewWindow(int width, int height, const std::string& title)
 
     glfwSetWindowUserPointer(window_, this);
     glfwSetKeyCallback(window_, keyCallbackStatic);
+    glfwSetCursorPosCallback(window_, mousePosCallbackStatic);
+    glfwSetMouseButtonCallback(window_, mouseButtonCallbackStatic);
 
     spdlog::info("Created preview window: {}x{}", width, height);
 }
@@ -66,10 +68,32 @@ void PreviewWindow::setKeyCallback(std::function<void(int key, int action)> call
     keyCallback_ = callback;
 }
 
+void PreviewWindow::setMousePosCallback(std::function<void(double x, double y)> callback) {
+    mousePosCallback_ = callback;
+}
+
+void PreviewWindow::setMouseButtonCallback(std::function<void(int button, int action)> callback) {
+    mouseButtonCallback_ = callback;
+}
+
 void PreviewWindow::keyCallbackStatic(GLFWwindow* window, int key, int scancode, int action, int mods) {
     auto* previewWindow = static_cast<PreviewWindow*>(glfwGetWindowUserPointer(window));
     if (previewWindow && previewWindow->keyCallback_) {
         previewWindow->keyCallback_(key, action);
+    }
+}
+
+void PreviewWindow::mousePosCallbackStatic(GLFWwindow* window, double xpos, double ypos) {
+    auto* previewWindow = static_cast<PreviewWindow*>(glfwGetWindowUserPointer(window));
+    if (previewWindow && previewWindow->mousePosCallback_) {
+        previewWindow->mousePosCallback_(xpos, ypos);
+    }
+}
+
+void PreviewWindow::mouseButtonCallbackStatic(GLFWwindow* window, int button, int action, int mods) {
+    auto* previewWindow = static_cast<PreviewWindow*>(glfwGetWindowUserPointer(window));
+    if (previewWindow && previewWindow->mouseButtonCallback_) {
+        previewWindow->mouseButtonCallback_(button, action);
     }
 }
 

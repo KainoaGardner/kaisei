@@ -1,5 +1,6 @@
 #include "renderer/multiPassRenderer.h"
 
+#include <ctime>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -24,7 +25,21 @@ std::string readFile(const std::string& path) {
 } 
 
 MultiPassRenderer::MultiPassRenderer(backend::Backend& backend, core::ModuleLoader& moduleLoader)
-    : backend_(backend), moduleLoader_(moduleLoader), vertexShader_(0), passthroughProgram_(0), currentPreset_(nullptr) {
+    : backend_(backend),
+      moduleLoader_(moduleLoader),
+      vertexShader_(0),
+      passthroughProgram_(0),
+      currentPreset_(nullptr),
+      startTime_(std::chrono::steady_clock::now()),
+      lastFrameTime_(std::chrono::steady_clock::now()),
+      frameCount_(0),
+      mouseX_(0.0f),
+      mouseY_(0.0f),
+      mouseLeftButton_(false),
+      mouseRightButton_(false),
+      randomEngine_(std::random_device{}()),
+      randomDist_(0.0f, 1.0f)
+    {
 
     vertexShaderSource_ = readFile("shaders/vertex.vert");
     vertexShader_ = backend_.compileShader(vertexShaderSource_, backend::Backend::VERTEX_SHADER);
@@ -81,16 +96,22 @@ void MultiPassRenderer::compilePass(const std::string& moduleName) {
 }
 
 uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32_t height) {
+    auto now = std::chrono::steady_clock::now();
+
     if (passes_.empty()) {
         backend_.unbindFramebuffer();
         backend_.setViewport(0, 0, width, height);
         backend_.clear(0.0f, 0.0f, 0.0f, 1.0f);
 
         backend_.useProgram(passthroughProgram_);
+        setAutomaticUniforms(passthroughProgram_, inputTexture, width, height, now);
+
         backend_.bindTexture(inputTexture, 0);
         backend_.setUniformInt(passthroughProgram_, "u_inputTexture", 0);
         backend_.drawFullscreenQuad();
 
+        frameCount_++;
+        lastFrameTime_ = now;
         return inputTexture;
     }
 
@@ -120,6 +141,7 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
         backend_.clear(0.0f, 0.0f, 0.0f, 1.0f);
 
         backend_.useProgram(pass.program);
+        setAutomaticUniforms(pass.program, currentInput, width, height, now);
 
         backend_.bindTexture(currentInput, 0);
         backend_.setUniformInt(pass.program, "u_inputTexture", 0);
@@ -172,6 +194,9 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
         }
     }
 
+    frameCount_++;
+    lastFrameTime_ = now;
+
     if (passes_.size() == 1) {
         return backend_.getFramebufferTexture(framebuffers_[0]);
     } else {
@@ -200,6 +225,38 @@ void MultiPassRenderer::cleanupFramebuffers() {
         backend_.deleteFramebuffer(fbo);
     }
     framebuffers_.clear();
+}
+
+void MultiPassRenderer::setAutomaticUniforms(uint32_t program, uint32_t inputTexture, uint32_t width, uint32_t height,
+                                             const std::chrono::steady_clock::time_point& currentFrameTime) {
+    float elapsed = std::chrono::duration<float>(currentFrameTime - startTime_).count();
+    float deltaTime = std::chrono::duration<float>(currentFrameTime - lastFrameTime_).count();
+
+    backend_.setUniformFloat(program, "u_time", elapsed);
+    backend_.setUniformFloat(program, "u_deltaTime", deltaTime);
+    backend_.setUniformVec2(program, "u_resolution", static_cast<float>(width), static_cast<float>(height));
+    backend_.setUniformVec2(program, "u_texelSize", 1.0f / static_cast<float>(width), 1.0f / static_cast<float>(height));
+    backend_.setUniformInt(program, "u_frame", frameCount_);
+    backend_.setUniformFloat(program, "u_random", randomDist_(randomEngine_));
+
+    auto now = std::chrono::system_clock::now();
+    auto time_t_now = std::chrono::system_clock::to_time_t(now);
+    std::tm* local_time = std::localtime(&time_t_now);
+    float year = static_cast<float>(local_time->tm_year + 1900);
+    float month = static_cast<float>(local_time->tm_mon + 1);
+    float day = static_cast<float>(local_time->tm_mday);
+    float seconds = static_cast<float>(local_time->tm_hour * 3600 + local_time->tm_min * 60 + local_time->tm_sec);
+    backend_.setUniformVec4(program, "u_date", year, month, day, seconds);
+
+    uint32_t inputWidth, inputHeight;
+    backend_.getTextureSize(inputTexture, inputWidth, inputHeight);
+    backend_.setUniformVec2(program, "u_inputSize", static_cast<float>(inputWidth), static_cast<float>(inputHeight));
+
+    backend_.setUniformVec2(program, "u_mouse", mouseX_, mouseY_);
+    backend_.setUniformVec4(program, "u_mouseButtons",
+        mouseLeftButton_ ? 1.0f : 0.0f,
+        mouseRightButton_ ? 1.0f : 0.0f,
+        0.0f, 0.0f);
 }
 
 } // namespace kaisei::renderer

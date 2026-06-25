@@ -1,0 +1,48 @@
+[module]
+name = "wave"
+version = "1.0.0"
+author = "kaisei contributors"
+description = "Animated wave distortion effect"
+category = "time"
+tags = ["time", "animated", "distortion", "wave"]
+type = "module"
+
+[shader]
+file = "wave.frag"
+fusible = true
+fusion_priority = 0
+input_variable = "inputColor"
+output_variable = "fragColor"
+
+[dependencies]
+requires = []
+conflicts = []
+
+[[uniforms]]
+name = "u_amplitude"
+type = "float"
+default = "0.01"
+description = "Wave amplitude (distortion strength)"
+min = 0.0
+max = 0.1
+
+[[uniforms]]
+name = "u_frequency"
+type = "float"
+default = "10.0"
+description = "Wave frequency (number of waves)"
+min = 1.0
+max = 50.0
+
+[[uniforms]]
+name = "u_speed"
+type = "float"
+default = "2.0"
+description = "Wave animation speed"
+min = 0.0
+max = 10.0
+
+[[textures]]
+name = "u_inputTexture"
+description = "Input image/frame"
+optional = false

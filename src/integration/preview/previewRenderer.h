@@ -19,6 +19,8 @@ public:
 
 private:
     void handleKeyInput(int key, int action);
+    void handleMousePos(double x, double y);
+    void handleMouseButton(int button, int action);
 
     core::Registry& registry_;
     std::unique_ptr<backend::Backend> backend_;
@@ -28,6 +30,9 @@ private:
     uint32_t sourceTexture_;
     int imageWidth_;
     int imageHeight_;
+
+    bool mouseLeftButton_;
+    bool mouseRightButton_;
 };
 
 } // namespace kaisei::integration::preview

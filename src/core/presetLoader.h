@@ -23,6 +23,7 @@ public:
                         const std::string& description = "");
 
     void save(const std::string& name);
+    void deletePreset(const std::string& name);
     void exportPreset(const std::string& name, const std::filesystem::path& filePath);
     void importPreset(const std::filesystem::path& filePath);
 

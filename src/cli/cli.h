@@ -15,6 +15,7 @@ public:
 
 private:
     void setupCommands();
+    void setupGlobalOptions();
     void setupPresetCommands();
     void setupModuleCommands();
 

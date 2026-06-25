@@ -1,4 +1,5 @@
 #include "cli/presetCommands.h"
+#include "utils/format.h"
 
 #include <spdlog/spdlog.h>
 #include <iostream>
@@ -16,6 +17,13 @@ void PresetCommands::setup(CLI::App* preset, core::Registry& registry) {
     create->add_option("--version,-v", version, "Preset version");
     create->add_option("--description,-d", description, "Preset description");
     create->callback([&]() { PresetCommands::create(registry, name, version, description); });
+ 
+    // preset delete <name>
+    auto* del = preset->add_subcommand("delete", "Delete a preset");
+    static std::string delPresetName;
+
+    del->add_option("name", delPresetName, "Preset name")->required();
+    del->callback([&]() { PresetCommands::deletePreset(registry, delPresetName); });
 
     // preset add <name> <module>
     auto* add = preset->add_subcommand("add", "Add a module to a preset");
@@ -37,6 +45,17 @@ void PresetCommands::setup(CLI::App* preset, core::Registry& registry) {
     remove->add_option("index", index, "Module index to remove")->required();
     remove->callback([&]() { PresetCommands::remove(registry, rmPresetName, index); });
 
+    // preset move <name> <from> <to>
+    auto* move = preset->add_subcommand("move", "Move a module within a preset");
+    static std::string mvPresetName;
+    static size_t fromIndex;
+    static size_t toIndex;
+
+    move->add_option("preset", mvPresetName, "Preset name")->required();
+    move->add_option("from", fromIndex, "Current module index")->required();
+    move->add_option("to", toIndex, "Target module index")->required();
+    move->callback([&]() { PresetCommands::move(registry, mvPresetName, fromIndex, toIndex); });
+
     // preset list
     auto* list = preset->add_subcommand("list", "List all presets");
     list->callback([&]() { PresetCommands::list(registry); });
@@ -52,9 +71,9 @@ void PresetCommands::setup(CLI::App* preset, core::Registry& registry) {
 void PresetCommands::create(core::Registry& registry, const std::string& name, const std::string& version, const std::string& description) {
     auto* preset = registry.presets().createPreset(name, version, description);
 
-    std::cout << "Created preset: " << preset->name() << " (v" << preset->version() << ")\n";
+    std::cout << utils::bold("Created preset: ") << preset->name() << " " << preset->version() << "\n";
     if (!description.empty()) {
-        std::cout << "Description: " << description << "\n";
+        std::cout << utils::bold("Description: ") << description << "\n";
     }
 }
 
@@ -69,7 +88,6 @@ void PresetCommands::add(core::Registry& registry, const std::string& name, cons
         return;
     }
 
-    // Parse overrides (key=value format)
     std::map<std::string, std::string> overrideMap;
     for (const auto& override : overrides) {
         size_t pos = override.find('=');
@@ -86,7 +104,7 @@ void PresetCommands::add(core::Registry& registry, const std::string& name, cons
     preset->addModule(module, overrideMap);
     registry.presets().save(name);
 
-    std::cout << "Added module '" << module << "' to preset '" << name << "'\n";
+    std::cout << utils::bold("Added module") << " '" << module << "' " <<  utils::bold("to preset") << " '" << name << "'\n";
 }
 
 void PresetCommands::remove(core::Registry& registry, const std::string& name, size_t index) {
@@ -105,7 +123,42 @@ void PresetCommands::remove(core::Registry& registry, const std::string& name, s
     preset->removeModule(index);
     registry.presets().save(name);
 
-    std::cout << "Removed module at index " << index << " from preset '" << name << "'\n";
+    std::cout << utils::bold("Removed module at index ") << index << utils::bold(" from preset") << " '" << name << "'\n";
+}
+
+void PresetCommands::move(core::Registry& registry, const std::string& name, size_t fromIndex, size_t toIndex) {
+    if (!registry.presets().hasPreset(name)) {
+        spdlog::error("Preset '{}' not found", name);
+        return;
+    }
+
+    auto* preset = registry.presets().getPresetMutable(name);
+
+    if (fromIndex >= preset->modules().size()) {
+        spdlog::error("From index {} out of range (preset has {} modules)", fromIndex, preset->modules().size());
+        return;
+    }
+
+    if (toIndex >= preset->modules().size()) {
+        spdlog::error("To index {} out of range (preset has {} modules)", toIndex, preset->modules().size());
+        return;
+    }
+
+    preset->moveModule(fromIndex, toIndex);
+    registry.presets().save(name);
+
+    std::cout << utils::bold("Moved module from index ") << fromIndex << utils::bold(" to index ") << toIndex
+              << utils::bold(" in preset") << " '" << name << "'\n";
+}
+
+void PresetCommands::deletePreset(core::Registry& registry, const std::string& name) {
+    if (!registry.presets().hasPreset(name)) {
+        spdlog::error("Preset '{}' not found", name);
+        return;
+    }
+
+    registry.presets().deletePreset(name);
+    std::cout << utils::bold("Deleted preset: ") << "'" << name << "'\n";
 }
 
 void PresetCommands::list(core::Registry& registry) {
@@ -116,11 +169,12 @@ void PresetCommands::list(core::Registry& registry) {
         return;
     }
 
-    std::cout << "Available presets:\n";
+    size_t i = 0;
+    std::cout << utils::bold("Available presets:\n");
     for (const auto& name : presets) {
         auto* preset = registry.presets().getPreset(name);
-        std::cout << "  " << name << " (v" << preset->version() << ") - "
-                  << preset->modules().size() << " modules\n";
+        std::cout << utils::bold(std::to_string(i++) + ". ") << name << " " << preset->version() 
+                  << utils::bold(" - ") << utils::bold(std::to_string(preset->modules().size())) << utils::bold(" modules\n");
         if (!preset->description().empty()) {
             std::cout << "    " << preset->description() << "\n";
         }
@@ -135,18 +189,18 @@ void PresetCommands::show(core::Registry& registry, const std::string& name) {
 
     auto* preset = registry.presets().getPreset(name);
 
-    std::cout << "Preset: " << preset->name() << "\n";
-    std::cout << "Version: " << preset->version() << "\n";
+    std::cout << utils::bold("Preset: ") << preset->name() << "\n";
+    std::cout << utils::bold("Version: ") << preset->version() << "\n";
     if (!preset->description().empty()) {
-        std::cout << "Description: " << preset->description() << "\n";
+        std::cout << utils::bold("Description: ") << preset->description() << "\n";
     }
-    std::cout << "\nModules (" << preset->modules().size() << "):\n";
+    std::cout << utils::bold("\nModules: ") << utils::bold(std::to_string(preset->modules().size())) << "\n";
 
     size_t index = 0;
     for (const auto& module : preset->modules()) {
         std::cout << "  [" << index++ << "] " << module.moduleName;
         if (!module.uniformOverrides.empty()) {
-            std::cout << " (overrides: ";
+            std::cout << utils::bold(" (overrides: ");
             bool first = true;
             for (const auto& [key, value] : module.uniformOverrides) {
                 if (!first) std::cout << ", ";

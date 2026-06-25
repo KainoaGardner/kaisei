@@ -35,8 +35,8 @@ void Registry::loadDefaultPaths() {
     std::filesystem::path home(homeDir);
 
     std::filesystem::path currentPath = std::filesystem::current_path();
-    std::filesystem::path repoModules = currentPath.parent_path() / "modules";
-    std::filesystem::path repoExamples = currentPath.parent_path() / "examples" / "presets";
+    std::filesystem::path repoModules = currentPath / "modules";
+    std::filesystem::path repoExamples = currentPath / "examples" / "presets";
 
     if (std::filesystem::exists(repoModules)) {
         addModuleSearchPath(repoModules);

@@ -1,16 +1,18 @@
 #include "cli/moduleCommands.h"
+#include "utils/format.h"
 
 #include <spdlog/spdlog.h>
 #include <iostream>
+#include <string>
 
 namespace kaisei::cli {
 
 void ModuleCommands::setup(CLI::App* module, core::Registry& registry) {
-    // module list
+    // module list (--tag)
     auto* list = module->add_subcommand("list", "List available modules");
     static std::string tag;
 
-    list->add_option("tag", tag, "Filter by tag (optional)");
+    list->add_option("--tag,-t", tag, "Filter by tag (optional)");
     list->callback([&]() { ModuleCommands::list(registry, tag); });
 
     // module info
@@ -50,21 +52,22 @@ void ModuleCommands::list(core::Registry& registry, const std::string& tag) {
     }
 
     if (filteredModules.empty()) {
-        std::cout << "No modules found";
-        if (!tag.empty()) {
-            std::cout << " for tag '" << tag << "'";
-        }
-        std::cout << "\n";
+        std::cout << "No modules found\n";
         return;
     }
 
     std::sort(filteredModules.begin(), filteredModules.end(),
               [](const auto& a, const auto& b) { return a.first < b.first; });
 
-    std::cout << "Available modules:\n";
+    std::cout << utils::bold("---Modules---") << "\n";
+    if (!tag.empty()) {
+        std::cout << utils::bold("Tag:")  << "'" << tag << "'\n";
+    }
+
+    size_t i = 0;
     for (const auto& [name, module] : filteredModules) {
         const auto& metadata = module->metadata();
-        std::cout << "  " << metadata.name << " (v" << metadata.version << ")\n";
+        std::cout << utils::bold(std::to_string(i++) + ". ") << metadata.name << " " << metadata.version << "\n";
     }
 }
 
@@ -77,13 +80,13 @@ void ModuleCommands::info(core::Registry& registry, const std::string& name) {
     auto* module = registry.modules().getModule(name);
     const auto& metadata = module->metadata();
 
-    std::cout << "Module: " << metadata.name << "\n";
-    std::cout << "Version: " << metadata.version << "\n";
-    std::cout << "Author: " << metadata.author << "\n";
-    std::cout << "Description: " << metadata.description << "\n";
+    std::cout << utils::bold("Module: ") << metadata.name << "\n";
+    std::cout << utils::bold("Version: ") << metadata.version << "\n";
+    std::cout << utils::bold("Author: ") << metadata.author << "\n";
+    std::cout << utils::bold("Description: ") << metadata.description << "\n";
 
     if (!metadata.tags.empty()) {
-        std::cout << "Tags: ";
+        std::cout << utils::bold("Tags: ");
         for (size_t i = 0; i < metadata.tags.size(); ++i) {
             if (i > 0) std::cout << ", ";
             std::cout << metadata.tags[i];
@@ -92,7 +95,7 @@ void ModuleCommands::info(core::Registry& registry, const std::string& name) {
     }
 
     if (!metadata.uniforms.empty()) {
-        std::cout << "\nUniforms:\n";
+        std::cout << utils::bold("\nUniforms:\n");
         for (const auto& uniform : metadata.uniforms) {
             std::cout << "  " << uniform.name << " (" << uniform.type << ")";
             if (uniform.defaultValue) {
@@ -106,7 +109,7 @@ void ModuleCommands::info(core::Registry& registry, const std::string& name) {
     }
 
     if (!metadata.textures.empty()) {
-        std::cout << "\nTextures:\n";
+        std::cout << utils::bold("\nTextures:\n");
         for (const auto& texture : metadata.textures) {
             std::cout << "  " << texture.name;
             if (texture.optional) {

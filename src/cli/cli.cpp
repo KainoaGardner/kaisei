@@ -7,17 +7,26 @@
 namespace kaisei::cli {
 
 CLIApp::CLIApp() {
-    registry_.initialize();
-
     app_ = std::make_unique<CLI::App>("Kaisei - Modular shader composition framework");
     app_->require_subcommand(1);
+
+    app_->parse_complete_callback([this]() {
+        registry_.initialize();
+    });
 
     setupCommands();
 }
 
 void CLIApp::setupCommands() {
+    setupGlobalOptions();
     setupModuleCommands();
     setupPresetCommands();
+}
+
+void CLIApp::setupGlobalOptions() {
+    app_->add_flag_callback("--verbose,-v",
+        []() { spdlog::set_level(spdlog::level::debug);},
+        "Enable verbose logging");
 }
 
 void CLIApp::setupModuleCommands() {
@@ -37,6 +46,7 @@ void CLIApp::setupPresetCommands() {
 int CLIApp::run(int argc, char** argv) {
     try {
         app_->parse(argc, argv);
+
         return 0;
     } catch (const CLI::ParseError& e) {
         return app_->exit(e);

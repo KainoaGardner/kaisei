@@ -241,6 +241,22 @@ void PresetLoader::save(const std::string& name) {
     savePreset(*it->second, filePath);
 }
 
+void PresetLoader::deletePreset(const std::string& name) {
+    auto it = presets_.find(name);
+    if (it == presets_.end()) {
+        throw std::runtime_error("Preset not found: " + name);
+    }
+
+    auto filePath = getPresetFilePath(name);
+    if (std::filesystem::exists(filePath)) {
+        std::filesystem::remove(filePath);
+        spdlog::info("Deleted preset file: {}", filePath.string());
+    }
+
+    presets_.erase(it);
+    spdlog::info("Deleted preset '{}'", name);
+}
+
 void PresetLoader::exportPreset(const std::string& name, const std::filesystem::path& filePath) {
     auto it = presets_.find(name);
     if (it == presets_.end()) {

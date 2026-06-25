@@ -19,6 +19,7 @@ private:
     void setupPresetCommands();
     void setupModuleCommands();
     void setupPreviewCommands();
+    void setupHyprlandCommands();
 
     std::unique_ptr<CLI::App> app_;
     core::Registry registry_;

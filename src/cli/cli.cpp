@@ -1,7 +1,8 @@
 #include "cli/cli.h"
 #include "cli/presetCommands.h"
 #include "cli/moduleCommands.h"
-#include "cli/previewCommands.h"
+#include "cli/integrations/previewCommands.h"
+#include "cli/integrations/hyprlandCommands.h"
 
 #include <spdlog/spdlog.h>
 
@@ -23,6 +24,7 @@ void CLIApp::setupCommands() {
     setupModuleCommands();
     setupPresetCommands();
     setupPreviewCommands();
+    setupHyprlandCommands();
 }
 
 void CLIApp::setupGlobalOptions() {
@@ -46,7 +48,17 @@ void CLIApp::setupPresetCommands() {
 }
 
 void CLIApp::setupPreviewCommands() {
-    PreviewCommands::setup(app_.get(), registry_);
+    auto* preview = app_->add_subcommand("preview", "Preview presets on images");
+    preview->require_subcommand(1);
+
+    PreviewCommands::setup(preview, registry_);
+}
+
+void CLIApp::setupHyprlandCommands() {
+    auto* hyprland = app_->add_subcommand("hyprland", "Control Hyprland integration");
+    hyprland->require_subcommand(1);
+
+    HyprlandCommands::setup(hyprland, registry_);
 }
 
 int CLIApp::run(int argc, char** argv) {

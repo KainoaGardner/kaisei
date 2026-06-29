@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(kaisei VERSION 1.0.0 LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -14,6 +14,8 @@ option(KAISEI_INSTALL_MODULES "Install built-in modules" ON)
 find_package(OpenGL REQUIRED)
 find_package(glfw3 3.3 REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(HYPRLAND REQUIRED hyprland)
 
 # TODO: glslang and SPIRV-Tools will be needed in Phase 2 for shader fusion
 # For now we'll use FetchContent when we implement the fusion engine
@@ -43,6 +45,7 @@ FetchContent_MakeAvailable(tomlplusplus cli11)
 # Add glad (OpenGL function loader)
 add_library(glad ${CMAKE_SOURCE_DIR}/third_party/glad/src/glad.c)
 target_include_directories(glad PUBLIC ${CMAKE_SOURCE_DIR}/third_party/glad/include)
+set_target_properties(glad PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Add stb_image header-only library
 add_library(stb_image INTERFACE)
@@ -65,6 +68,12 @@ if(KAISEI_INSTALL_MODULES)
             FILES_MATCHING PATTERN "*.glsl" PATTERN "*.vert" PATTERN "*.frag")
 endif()
 
+# Tools
+add_executable(kaisei-ctl tools/kaisei-ctl.cpp)
+
 # Install examples
 install(DIRECTORY examples/presets/ DESTINATION share/kaisei/examples/presets
         FILES_MATCHING PATTERN "*.preset")
+
+# Install tools
+install(TARGETS kaisei-ctl DESTINATION bin)

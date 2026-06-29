@@ -9,6 +9,7 @@ add_library(kaisei-core
 
 target_include_directories(kaisei-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(kaisei-core PUBLIC tomlplusplus::tomlplusplus spdlog::spdlog)
+set_target_properties(kaisei-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Fusion library (TODO: implement these files)
 # add_library(kaisei-fusion
@@ -43,6 +44,7 @@ target_link_libraries(kaisei-backend PUBLIC
     stb_image
     spdlog::spdlog
 )
+set_target_properties(kaisei-backend PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Renderer library - Multi-pass rendering
 add_library(kaisei-renderer
@@ -55,6 +57,7 @@ target_link_libraries(kaisei-renderer PUBLIC
     kaisei-backend
     spdlog::spdlog
 )
+set_target_properties(kaisei-renderer PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Integration library - Preview window and rendering
 add_library(kaisei-integration
@@ -97,7 +100,7 @@ add_library(kaisei-cli
     cli/cli.cpp
     cli/moduleCommands.cpp
     cli/presetCommands.cpp
-    cli/previewCommands.cpp
+    cli/integrations/previewCommands.cpp
 )
 
 target_include_directories(kaisei-cli PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -111,6 +114,31 @@ target_link_libraries(kaisei-cli PUBLIC
 # Main executable
 add_executable(kaisei main.cpp)
 target_link_libraries(kaisei PRIVATE kaisei-cli)
+
+# Hyprland plugin (shared library)
+add_library(kaisei-hyprland SHARED
+    integration/hyprland/hyprlandPlugin.cpp
+    integration/hyprland/hyprlandRenderer.cpp
+    integration/hyprland/hyprlandServer.cpp
+)
+
+target_include_directories(kaisei-hyprland PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${HYPRLAND_INCLUDE_DIRS}
+)
+target_link_libraries(kaisei-hyprland PRIVATE
+    kaisei-core
+    kaisei-backend
+    kaisei-renderer
+    spdlog::spdlog
+    ${HYPRLAND_LIBRARIES}
+)
+
+# Set output name to kaisei.so (Hyprland plugin naming)
+set_target_properties(kaisei-hyprland PROPERTIES
+    OUTPUT_NAME "kaisei"
+    PREFIX ""
+)
 
 # Install executable
 install(TARGETS kaisei DESTINATION bin)

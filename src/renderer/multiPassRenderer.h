@@ -24,7 +24,7 @@ public:
 
     void loadPreset(const core::Preset& preset);
 
-    uint32_t render(uint32_t inputTexture, uint32_t width, uint32_t height);
+    uint32_t render(uint32_t inputTexture, uint32_t width, uint32_t height, uint32_t outputFbo = 0);
 
     void setMousePosition(float x, float y) { mouseX_ = x; mouseY_ = y; }
     void setMouseButtons(bool left, bool right) { mouseLeftButton_ = left; mouseRightButton_ = right; }

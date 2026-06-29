@@ -95,11 +95,11 @@ void MultiPassRenderer::compilePass(const std::string& moduleName) {
     spdlog::debug("Compiled pass for module '{}'", moduleName);
 }
 
-uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32_t height) {
+uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32_t height, uint32_t outputFbo) {
     auto now = std::chrono::steady_clock::now();
 
     if (passes_.empty()) {
-        backend_.unbindFramebuffer();
+        backend_.bindFramebuffer(outputFbo);
         backend_.setViewport(0, 0, width, height);
         backend_.clear(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -126,16 +126,12 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
         const auto& pass = passes_[i];
 
         if (i == passes_.size() - 1) {
-            currentFBO = 0;
+            currentFBO = outputFbo;
         } else {
             currentFBO = framebuffers_[i % 2];
         }
 
-        if (currentFBO == 0) {
-            backend_.unbindFramebuffer();
-        } else {
-            backend_.bindFramebuffer(currentFBO);
-        }
+        backend_.bindFramebuffer(currentFBO);
 
         backend_.setViewport(0, 0, width, height);
         backend_.clear(0.0f, 0.0f, 0.0f, 1.0f);

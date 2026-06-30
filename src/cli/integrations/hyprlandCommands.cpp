@@ -1,5 +1,6 @@
 #include "cli/integrations/hyprlandCommands.h"
 
+#include <iostream>
 #include <spdlog/spdlog.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -43,8 +44,8 @@ void HyprlandCommands::load(core::Registry& registry, const std::string& presetN
     }
 
     try {
-        sendCommand("LOAD:" + presetName);
-        spdlog::info("Loaded preset '{}'", presetName);
+        std::string response = sendCommand("LOAD:" + presetName);
+        std::cout << response << "\n";
     } catch (const std::exception& e) {
         spdlog::error("Failed to load preset: {}", e.what());
     }
@@ -52,8 +53,8 @@ void HyprlandCommands::load(core::Registry& registry, const std::string& presetN
 
 void HyprlandCommands::on() {
     try {
-        sendCommand("ON");
-        spdlog::info("Effects enabled");
+        std::string response = sendCommand("ON");
+        std::cout << response << "\n";
     } catch (const std::exception& e) {
         spdlog::error("Failed to enable: {}", e.what());
     }
@@ -61,8 +62,8 @@ void HyprlandCommands::on() {
 
 void HyprlandCommands::off() {
     try {
-        sendCommand("OFF");
-        spdlog::info("Effects disabled");
+        std::string response = sendCommand("OFF");
+        std::cout << response << "\n";
     } catch (const std::exception& e) {
         spdlog::error("Failed to disable: {}", e.what());
     }
@@ -70,8 +71,8 @@ void HyprlandCommands::off() {
 
 void HyprlandCommands::toggle() {
     try {
-        sendCommand("TOGGLE");
-        spdlog::info("Toggled effects");
+        std::string response = sendCommand("TOGGLE");
+        std::cout << response << "\n";
     } catch (const std::exception& e) {
         spdlog::error("Failed to toggle: {}", e.what());
     }
@@ -79,13 +80,14 @@ void HyprlandCommands::toggle() {
 
 void HyprlandCommands::status() {
     try {
-        sendCommand("STATUS");
+        std::string response = sendCommand("STATUS");
+        std::cout << response << "\n";
     } catch (const std::exception& e) {
         spdlog::error("Failed to get status: {}", e.what());
     }
 }
 
-void HyprlandCommands::sendCommand(const std::string& command) {
+std::string HyprlandCommands::sendCommand(const std::string& command) {
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockfd < 0) {
         throw std::runtime_error("Failed to create socket: " + std::string(strerror(errno)));
@@ -122,9 +124,11 @@ void HyprlandCommands::sendCommand(const std::string& command) {
         throw std::runtime_error(response.substr(6));
     }
 
-    if (command == "STATUS" && response != "OK\n") {
-        spdlog::info("{}", response);
+    if (!response.empty() && response.back() == '\n') {
+        response.pop_back();
     }
+
+    return response;
 }
 
 } // namespace kaisei::cli

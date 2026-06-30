@@ -2,6 +2,7 @@
 
 #include <spdlog/spdlog.h>
 #include "backend/openGLBackend.h"
+#include "utils/format.h"
 
 namespace kaisei::integration::hyprland {
 
@@ -38,9 +39,9 @@ void HyprlandRenderer::setEnabled(bool enabled) {
 }
 
 std::string HyprlandRenderer::getStatus() const {
-    std::string status = "Hyprland Integration Status:\n";
-    status += "  Preset: " + (currentPreset_.empty() ? "none" : currentPreset_) + "\n";
-    status += "  Enabled: " + std::string(enabled_ ? "yes" : "no") + "\n";
+    std::string status = utils::bold("Hyprland Integration Status:\n");
+    status += utils::bold("  Preset: ") + (currentPreset_.empty() ? "none" : currentPreset_) + "\n";
+    status += utils::bold("  Enabled: ") + std::string(enabled_ ? "yes" : "no") + "\n";
     return status;
 }
 

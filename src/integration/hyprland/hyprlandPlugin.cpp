@@ -5,6 +5,7 @@
 #include "integration/hyprland/hyprlandRenderer.h"
 #include "integration/hyprland/hyprlandServer.h"
 #include "core/registry.h"
+#include "utils/format.h"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/event/EventBus.hpp>
@@ -39,28 +40,72 @@ static void onRenderPre(PHLMONITOR monitor) {
     g_renderer->render(inputTexture, outputFbo, width, height);
 }
 
-static void handleCommand(const std::string& command) {
+enum class CommandType {
+    Load,
+    On,
+    Off,
+    Toggle,
+    Status,
+    Unknown
+};
+
+static CommandType parseCommand(const std::string& command, std::string& arg) {
+    if (command.starts_with("LOAD:")) {
+        arg = command.substr(5);
+        return CommandType::Load;
+    } else if (command == "ON") {
+        return CommandType::On;
+    } else if (command == "OFF") {
+        return CommandType::Off;
+    } else if (command == "TOGGLE") {
+        return CommandType::Toggle;
+    } else if (command == "STATUS") {
+        return CommandType::Status;
+    }
+    return CommandType::Unknown;
+}
+
+static std::string handleCommand(const std::string& command) {
     spdlog::info("Received command: {}", command);
 
-    if (command.rfind("LOAD:", 0) == 0) {
-        std::string presetName = command.substr(5);
-        try {
-            g_renderer->loadPreset(presetName);
-            spdlog::info("Loaded preset: {}", presetName);
-        } catch (const std::exception& e) {
-            spdlog::error("Failed to load preset '{}': {}", presetName, e.what());
-        }
-    } else if (command == "TOGGLE") {
-        g_renderer->setEnabled(!g_renderer->isEnabled());
-        spdlog::info("Toggled effects: {}", g_renderer->isEnabled() ? "ON" : "OFF");
-    } else if (command == "STOP") {
-        g_renderer->setEnabled(false);
-        spdlog::info("Stopped effects");
-    } else if (command == "STATUS") {
-        spdlog::info(g_renderer->getStatus());
-    } else {
-        spdlog::warn("Unknown command: {}", command);
+    std::string arg;
+    CommandType cmdType = parseCommand(command, arg);
+
+    switch (cmdType) {
+        case CommandType::Load:
+            try {
+                g_renderer->loadPreset(arg);
+                spdlog::info("Loaded preset: {}", arg);
+                return utils::bold("Loaded preset '" + arg + "'");
+            } catch (const std::exception& e) {
+                spdlog::error("Failed to load preset '{}': {}", arg, e.what());
+                throw;
+            }
+
+        case CommandType::On:
+            g_renderer->setEnabled(true);
+            spdlog::info("Effects enabled");
+            return utils::bold("Effects enabled");
+
+        case CommandType::Off:
+            g_renderer->setEnabled(false);
+            spdlog::info("Effects disabled");
+            return utils::bold("Effects disabled");
+
+        case CommandType::Toggle:
+            g_renderer->setEnabled(!g_renderer->isEnabled());
+            spdlog::info("Toggled effects: {}", g_renderer->isEnabled() ? "ON" : "OFF");
+            return utils::bold(g_renderer->isEnabled() ? "Effects enabled" : "Effects disabled");
+
+        case CommandType::Status:
+            return g_renderer->getStatus();
+
+        case CommandType::Unknown:
+            spdlog::warn("Unknown command: {}", command);
+            return "ERROR:Unknown command '" + command + "'";
     }
+
+    return "OK";
 }
 
 } // namespace kaisei::integration::hyprland
@@ -80,6 +125,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     try {
         g_registry = std::make_unique<kaisei::core::Registry>();
+        g_registry->initialize();
+
         g_renderer = new HyprlandRenderer(*g_registry);
 
         g_server = new HyprlandServer();

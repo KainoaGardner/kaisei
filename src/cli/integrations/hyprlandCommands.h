@@ -16,7 +16,7 @@ private:
     static void toggle();
     static void status();
 
-    static void sendCommand(const std::string& command);
+    static std::string sendCommand(const std::string& command);
 };
 
 } // namespace kaisei::cli

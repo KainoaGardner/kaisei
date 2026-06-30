@@ -77,7 +77,7 @@ void HyprlandServer::stop() {
     spdlog::info("Hyprland server stopped");
 }
 
-void HyprlandServer::setCommandCallback(std::function<void(const std::string&)> callback) {
+void HyprlandServer::setCommandCallback(std::function<std::string(const std::string&)> callback) {
     commandCallback_ = callback;
 }
 
@@ -110,9 +110,11 @@ void HyprlandServer::handleClient(int clientFd) {
 
     if (commandCallback_) {
         try {
-            commandCallback_(command);
-            const char* response = "OK\n";
-            write(clientFd, response, strlen(response));
+            std::string response = commandCallback_(command);
+            if (!response.ends_with('\n')) {
+                response += '\n';
+            }
+            write(clientFd, response.c_str(), response.length());
         } catch (const std::exception& e) {
             std::string errorMsg = std::string("ERROR:") + e.what() + "\n";
             write(clientFd, errorMsg.c_str(), errorMsg.length());

@@ -5,6 +5,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Set default install prefix to ~/.local if not specified
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/.local" CACHE PATH "Install prefix" FORCE)
+endif()
+
 # Options
 option(KAISEI_BUILD_TESTS "Build tests" ON)
 option(KAISEI_ENABLE_VULKAN "Enable Vulkan backend" OFF)
@@ -68,12 +73,6 @@ if(KAISEI_INSTALL_MODULES)
             FILES_MATCHING PATTERN "*.glsl" PATTERN "*.vert" PATTERN "*.frag")
 endif()
 
-# Tools
-add_executable(kaisei-ctl tools/kaisei-ctl.cpp)
-
 # Install examples
 install(DIRECTORY examples/presets/ DESTINATION share/kaisei/examples/presets
         FILES_MATCHING PATTERN "*.preset")
-
-# Install tools
-install(TARGETS kaisei-ctl DESTINATION bin)

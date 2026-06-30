@@ -15,7 +15,7 @@ public:
     void start(const std::string& socketPath);
     void stop();
 
-    void setCommandCallback(std::function<void(const std::string&)> callback);
+    void setCommandCallback(std::function<std::string(const std::string&)> callback);
 
 private:
     void acceptLoop();
@@ -25,7 +25,7 @@ private:
     std::string socketPath_;
     std::thread acceptThread_;
     std::atomic<bool> running_;
-    std::function<void(const std::string&)> commandCallback_;
+    std::function<std::string(const std::string&)> commandCallback_;
 };
 
 } // namespace kaisei::integration::hyprland

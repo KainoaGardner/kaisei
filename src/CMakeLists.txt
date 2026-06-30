@@ -101,6 +101,7 @@ add_library(kaisei-cli
     cli/moduleCommands.cpp
     cli/presetCommands.cpp
     cli/integrations/previewCommands.cpp
+    cli/integrations/hyprlandCommands.cpp
 )
 
 target_include_directories(kaisei-cli PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -142,3 +143,8 @@ set_target_properties(kaisei-hyprland PROPERTIES
 
 # Install executable
 install(TARGETS kaisei DESTINATION bin)
+
+# Install Hyprland plugin
+install(TARGETS kaisei-hyprland
+    LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/share/hyprland/plugins
+)

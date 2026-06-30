@@ -1,0 +1,7 @@
+[preset]
+name = "test"
+description = "Simple blue test"
+version = "1.0"
+
+[[modules]]
+name = "blue"

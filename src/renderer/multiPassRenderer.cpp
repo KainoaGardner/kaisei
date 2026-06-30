@@ -5,6 +5,7 @@
 #include <sstream>
 #include <stdexcept>
 
+#include <glad/glad.h>
 #include <spdlog/spdlog.h>
 
 namespace kaisei::renderer {
@@ -30,6 +31,7 @@ MultiPassRenderer::MultiPassRenderer(backend::Backend& backend, core::ModuleLoad
       vertexShader_(0),
       passthroughProgram_(0),
       currentPreset_(nullptr),
+      needsCompilation_(true),
       startTime_(std::chrono::steady_clock::now()),
       lastFrameTime_(std::chrono::steady_clock::now()),
       frameCount_(0),
@@ -42,38 +44,47 @@ MultiPassRenderer::MultiPassRenderer(backend::Backend& backend, core::ModuleLoad
     {
 
     vertexShaderSource_ = readFile("shaders/vertex.vert");
-    vertexShader_ = backend_.compileShader(vertexShaderSource_, backend::Backend::VERTEX_SHADER);
 
-    std::string passthroughSource = readFile("shaders/passthrough.frag");
-    uint32_t passthroughFrag = backend_.compileShader(passthroughSource, backend::Backend::FRAGMENT_SHADER);
-    passthroughProgram_ = backend_.linkProgram(vertexShader_, passthroughFrag);
-
-    spdlog::debug("MultiPassRenderer initialized");
+    spdlog::debug("MultiPassRenderer initialized (shaders will compile on first render)");
 }
 
 MultiPassRenderer::~MultiPassRenderer() {
-    cleanupPasses();
-    cleanupFramebuffers();
-
-    if (passthroughProgram_) {
-        backend_.deleteProgram(passthroughProgram_);
-    }
-    if (vertexShader_) {
-        backend_.deleteProgram(vertexShader_);
-    }
+    cleanup();
 }
 
 void MultiPassRenderer::loadPreset(const core::Preset& preset) {
-    cleanupPasses();
-    cleanupFramebuffers();
-
+    cleanup();
     currentPreset_ = &preset;
 
-    for (const auto& module : preset.modules()) {
-        compilePass(module.moduleName);
+    spdlog::info("Preset '{}' queued for compilation (will compile on next render)", preset.name());
+}
+
+void MultiPassRenderer::compileIfNeeded() {
+    if (!needsCompilation_) {
+        return;
     }
 
-    spdlog::info("Loaded preset '{}' with {} passes", preset.name(), passes_.size());
+    spdlog::info("Compiling shaders on render thread...");
+
+    if (!vertexShader_) {
+        vertexShader_ = backend_.compileShader(vertexShaderSource_, backend::Backend::VERTEX_SHADER);
+    }
+
+    if (!passthroughProgram_) {
+        std::string passthroughSource = readFile("shaders/passthrough.frag");
+        uint32_t passthroughFrag = backend_.compileShader(passthroughSource, backend::Backend::FRAGMENT_SHADER);
+        passthroughProgram_ = backend_.linkProgram(vertexShader_, passthroughFrag);
+        glDeleteShader(passthroughFrag);
+    }
+
+    if (currentPreset_) {
+        for (const auto& module : currentPreset_->modules()) {
+            compilePass(module.moduleName);
+        }
+        spdlog::info("Compiled preset '{}' with {} passes", currentPreset_->name(), passes_.size());
+    }
+
+    needsCompilation_ = false;
 }
 
 void MultiPassRenderer::compilePass(const std::string& moduleName) {
@@ -90,12 +101,16 @@ void MultiPassRenderer::compilePass(const std::string& moduleName) {
 
     uint32_t program = backend_.linkProgram(vertexShader_, fragShader);
 
+    glDeleteShader(fragShader);
+
     passes_.push_back({program, moduleName});
 
     spdlog::debug("Compiled pass for module '{}'", moduleName);
 }
 
 uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32_t height, uint32_t outputFbo) {
+    compileIfNeeded();
+
     auto now = std::chrono::steady_clock::now();
 
     if (passes_.empty()) {
@@ -125,7 +140,7 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
     for (size_t i = 0; i < passes_.size(); ++i) {
         const auto& pass = passes_[i];
 
-        if (i == passes_.size() - 1) {
+        if (i == passes_.size() - 1 && outputFbo != 0) {
             currentFBO = outputFbo;
         } else {
             currentFBO = framebuffers_[i % 2];
@@ -193,11 +208,35 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
     frameCount_++;
     lastFrameTime_ = now;
 
-    if (passes_.size() == 1) {
-        return backend_.getFramebufferTexture(framebuffers_[0]);
+    if (outputFbo == 0) {
+        // We rendered to internal framebuffers, return the last one
+        if (passes_.size() == 1) {
+            return backend_.getFramebufferTexture(framebuffers_[0]);
+        } else {
+            return backend_.getFramebufferTexture(framebuffers_[(passes_.size() - 1) % 2]);
+        }
     } else {
-        return backend_.getFramebufferTexture(framebuffers_[(passes_.size() - 2) % 2]);
+        // We rendered to outputFbo, return its texture (not implemented yet)
+        return 0;
     }
+}
+
+void MultiPassRenderer::cleanup() {
+    cleanupPasses();
+    cleanupFramebuffers();
+
+    if (vertexShader_) {
+        glDeleteShader(vertexShader_);
+        vertexShader_ = 0;
+    }
+    if (passthroughProgram_) {
+        backend_.deleteProgram(passthroughProgram_);
+        passthroughProgram_ = 0;
+    }
+
+    needsCompilation_ = true;
+
+    spdlog::debug("Cleaned up GPU resources");
 }
 
 void MultiPassRenderer::reload() {

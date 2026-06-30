@@ -34,6 +34,7 @@ set_target_properties(kaisei-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # Backend library - Rendering API abstraction (OpenGL/Vulkan)
 add_library(kaisei-backend
     backend/openGLBackend.cpp
+    backend/shaderPreprocessor.cpp
 )
 
 target_include_directories(kaisei-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

@@ -1,4 +1,5 @@
 #include <memory>
+#include <GLES3/gl32.h>
 #include <spdlog/spdlog.h>
 
 #include "integration/hyprland/hyprlandPlugin.h"
@@ -11,6 +12,11 @@
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/helpers/Monitor.hpp>
+#include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/render/OpenGL.hpp>
+#include <hyprland/src/render/Framebuffer.hpp>
+#include <hyprland/src/render/Texture.hpp>
+#include <hyprland/src/render/gl/GLFramebuffer.hpp>
 
 namespace kaisei::integration::hyprland {
 
@@ -19,25 +25,72 @@ HyprlandServer* g_server = nullptr;
 HANDLE g_pluginHandle = nullptr;
 
 static std::unique_ptr<core::Registry> g_registry;
+static uint64_t g_frameCount = 0;
 
-static void onRenderPre(PHLMONITOR monitor) {
+static void onRenderStage(eRenderStage stage) {
+    if (stage != RENDER_LAST_MOMENT) {
+        return;
+    }
+
     if (!g_renderer || !g_renderer->isEnabled()) {
         return;
     }
 
+    if (!g_pHyprRenderer) {
+        spdlog::warn("g_pHyprRenderer is null");
+        return;
+    }
+
+    const auto& renderData = g_pHyprRenderer->renderData();
+
+    auto monitor = renderData.pMonitor.lock();
     if (!monitor) {
+        spdlog::warn("Monitor is null in render data");
         return;
     }
 
     uint32_t width = monitor->m_pixelSize.x;
     uint32_t height = monitor->m_pixelSize.y;
 
-    // TODO: Get actual input texture and output FBO from Hyprland's render context
-    // For now, this is a placeholder showing the structure
-    uint32_t inputTexture = 0;  // Placeholder
-    uint32_t outputFbo = 0;     // Placeholder - render to currently bound FBO
+    g_frameCount++;
 
-    g_renderer->render(inputTexture, outputFbo, width, height);
+    uint32_t inputTexture = 0;
+    uint32_t outputFbo = 0;
+
+    if (renderData.mainFB) {
+        auto tex = renderData.mainFB->getTexture();
+        if (tex) {
+            inputTexture = tex->m_texID;
+        }
+    }
+
+    SP<Render::IFramebuffer> targetFB = renderData.outFB;
+    if (!targetFB) {
+        spdlog::warn("outFB is null, falling back to currentFB");
+        targetFB = renderData.currentFB;
+    }
+
+    if (targetFB) {
+        auto* glFB = dynamic_cast<Render::GL::CGLFramebuffer*>(targetFB.get());
+        if (glFB) {
+            outputFbo = glFB->getFBID();
+
+            static bool logged_switch = false;
+            if (!logged_switch) {
+                uint32_t currentFboId = 0;
+                if (renderData.currentFB) {
+                    auto* currentGlFB = dynamic_cast<Render::GL::CGLFramebuffer*>(renderData.currentFB.get());
+                    if (currentGlFB) currentFboId = currentGlFB->getFBID();
+                }
+                spdlog::info("Switched to rendering to outFB: {} (currentFB was: {})", outputFbo, currentFboId);
+                logged_switch = true;
+            }
+        }
+    }
+
+    if (inputTexture > 0 && outputFbo > 0) {
+        g_renderer->render(inputTexture, outputFbo, width, height);
+    }
 }
 
 enum class CommandType {
@@ -120,24 +173,32 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     g_pluginHandle = handle;
 
-    spdlog::set_level(spdlog::level::info);
+    spdlog::set_level(spdlog::level::debug);
     spdlog::info("Kaisei Hyprland plugin initializing...");
 
     try {
+        spdlog::debug("Creating registry...");
         g_registry = std::make_unique<kaisei::core::Registry>();
         g_registry->initialize();
+        spdlog::debug("Registry initialized");
 
+        spdlog::debug("Creating renderer...");
         g_renderer = new HyprlandRenderer(*g_registry);
+        spdlog::debug("Renderer created");
 
+        spdlog::debug("Starting command server...");
         g_server = new HyprlandServer();
         g_server->setCommandCallback(handleCommand);
         g_server->start("/tmp/kaisei-hyprland.sock");
+        spdlog::debug("Command server started");
 
-        static auto renderListener = Event::bus()->m_events.render.pre.listen(
-            [](PHLMONITOR monitor) {
-                onRenderPre(monitor);
+        spdlog::debug("Registering render stage listener...");
+        static auto renderListener = Event::bus()->m_events.render.stage.listen(
+            [](eRenderStage stage) {
+                onRenderStage(stage);
             }
         );
+        spdlog::debug("Render stage listener registered");
 
         spdlog::info("Kaisei Hyprland plugin initialized successfully");
 

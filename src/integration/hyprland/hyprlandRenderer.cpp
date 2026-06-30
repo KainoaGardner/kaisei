@@ -1,5 +1,6 @@
 #include "integration/hyprland/hyprlandRenderer.h"
 
+#include <GLES3/gl32.h>
 #include <spdlog/spdlog.h>
 #include "backend/openGLBackend.h"
 #include "utils/format.h"
@@ -34,7 +35,16 @@ void HyprlandRenderer::loadPreset(const std::string& name) {
 }
 
 void HyprlandRenderer::setEnabled(bool enabled) {
+    if (enabled_ == enabled) {
+        return;
+    }
+
     enabled_ = enabled;
+
+    if (!enabled && renderer_) {
+        renderer_->cleanup();
+    }
+
     spdlog::info("Effects {}", enabled_ ? "enabled" : "disabled");
 }
 
@@ -50,7 +60,22 @@ void HyprlandRenderer::render(uint32_t inputTexture, uint32_t outputFbo, uint32_
         return;
     }
 
-    renderer_->render(inputTexture, width, height, outputFbo);
+    uint32_t resultTexture = renderer_->render(inputTexture, width, height, 0);
+
+    backend_->bindFramebuffer(outputFbo);
+    backend_->setViewport(0, 0, width, height);
+    backend_->clear(0.0f, 0.0f, 0.0f, 1.0f);
+
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+    glDepthMask(GL_FALSE);
+
+    uint32_t passthroughProg = renderer_->getPassthroughProgram();
+    backend_->useProgram(passthroughProg);
+    backend_->bindTexture(resultTexture, 0);
+    backend_->setUniformInt(passthroughProg, "u_inputTexture", 0);
+    backend_->drawFullscreenQuad();
 }
 
 } // namespace kaisei::integration::hyprland

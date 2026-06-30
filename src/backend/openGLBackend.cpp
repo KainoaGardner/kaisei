@@ -5,13 +5,15 @@
 #include <stdexcept>
 #include <vector>
 
+#include "backend/shaderPreprocessor.h"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 namespace kaisei::backend {
 
 OpenGLBackend::OpenGLBackend()
-    : quadVAO_(0), quadVBO_(0), initialized_(false) {
+    : quadVAO_(0), quadVBO_(0), initialized_(false), isGLES_(false) {
 }
 
 OpenGLBackend::~OpenGLBackend() {
@@ -30,10 +32,16 @@ bool OpenGLBackend::initialize() {
         spdlog::error("Failed to initialize glad (OpenGL function loader)");
         return false;
     }
+    spdlog::debug("Loaded OpenGL via GLAD");
 
-    spdlog::info("OpenGL Version: {}", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
+    const char* versionStr = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    spdlog::info("OpenGL Version: {}", versionStr);
     spdlog::info("GLSL Version: {}", reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION)));
     spdlog::info("Renderer: {}", reinterpret_cast<const char*>(glGetString(GL_RENDERER)));
+
+    std::string version(versionStr);
+    isGLES_ = (version.find("OpenGL ES") != std::string::npos);
+    spdlog::info("Backend: OpenGL {}", isGLES_ ? "ES" : "Desktop");
 
     createFullscreenQuad();
 
@@ -63,11 +71,22 @@ uint32_t OpenGLBackend::compileShader(const std::string& source, uint32_t type) 
     GLenum glType = (type == VERTEX_SHADER) ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER;
     const char* typeName = (type == VERTEX_SHADER) ? "vertex" : "fragment";
 
+    BackendType backendType = isGLES_ ? BackendType::OpenGLES : BackendType::OpenGL;
+    std::string processedSource = ShaderPreprocessor::process(source, backendType, type);
+
+    spdlog::debug("Compiling {} shader ({} bytes)", typeName, processedSource.size());
+    spdlog::debug("Shader source:\n{}", processedSource);
+
     GLuint shader = glCreateShader(glType);
-    const char* src = source.c_str();
+    if (shader == 0) {
+        GLenum err = glGetError();
+        spdlog::error("glCreateShader failed for {} shader, OpenGL error: 0x{:x}", typeName, err);
+        throw std::runtime_error("Failed to create shader object");
+    }
+
+    const char* src = processedSource.c_str();
     glShaderSource(shader, 1, &src, nullptr);
     glCompileShader(shader);
-
 
     GLint logLength = 0;
     glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
@@ -83,6 +102,7 @@ uint32_t OpenGLBackend::compileShader(const std::string& source, uint32_t type) 
     if (!success) {
         spdlog::error("Shader compilation failed ({} shader): {}", typeName,
                       logMessage.empty() ? "No error log" : logMessage);
+        spdlog::error("Failed shader source:\n{}", processedSource);
         glDeleteShader(shader);
         throw std::runtime_error("Shader compilation failed: " +
                                (logMessage.empty() ? "No error log" : logMessage));
@@ -91,19 +111,45 @@ uint32_t OpenGLBackend::compileShader(const std::string& source, uint32_t type) 
         spdlog::warn("Shader compilation warning ({} shader): {}", typeName, logMessage);
     }
 
+    spdlog::debug("Successfully compiled {} shader (ID: {})", typeName, shader);
     return shader;
 }
 
 uint32_t OpenGLBackend::linkProgram(uint32_t vertexShader, uint32_t fragmentShader) {
+    spdlog::debug("Linking program with vertex={}, fragment={}", vertexShader, fragmentShader);
+
     GLuint program = glCreateProgram();
+    if (program == 0) {
+        GLenum err = glGetError();
+        spdlog::error("glCreateProgram failed, OpenGL error: 0x{:x}", err);
+        throw std::runtime_error("Failed to create program object");
+    }
+    spdlog::debug("Created program: {}", program);
+
+    spdlog::debug("Attaching vertex shader...");
     glAttachShader(program, vertexShader);
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        spdlog::error("glAttachShader(vertex) failed, error: 0x{:x}", err);
+    }
+
+    spdlog::debug("Attaching fragment shader...");
     glAttachShader(program, fragmentShader);
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+        spdlog::error("glAttachShader(fragment) failed, error: 0x{:x}", err);
+    }
+
+    spdlog::debug("Linking program...");
     glLinkProgram(program);
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+        spdlog::error("glLinkProgram failed, error: 0x{:x}", err);
+    }
 
     GLint success;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
 
-    // Get log if available
     GLint logLength = 0;
     glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
     std::string logMessage;
@@ -113,7 +159,6 @@ uint32_t OpenGLBackend::linkProgram(uint32_t vertexShader, uint32_t fragmentShad
         logMessage = std::string(infoLog.data());
     }
 
-    // Check success FIRST, regardless of log
     if (!success) {
         spdlog::error("Program linking failed: {}",
                       logMessage.empty() ? "No error log" : logMessage);
@@ -121,13 +166,10 @@ uint32_t OpenGLBackend::linkProgram(uint32_t vertexShader, uint32_t fragmentShad
         throw std::runtime_error("Program linking failed: " +
                                (logMessage.empty() ? "No error log" : logMessage));
     } else if (!logMessage.empty()) {
-        // Success but has warnings
         spdlog::warn("Program linking warning: {}", logMessage);
     }
 
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
+    spdlog::debug("Successfully linked program: {}", program);
     return program;
 }
 
@@ -298,8 +340,26 @@ void OpenGLBackend::clear(float r, float g, float b, float a) {
 }
 
 void OpenGLBackend::drawFullscreenQuad() {
+    static bool first_draw = true;
+    if (first_draw) {
+        spdlog::info("First drawFullscreenQuad call: quadVAO_={}", quadVAO_);
+        first_draw = false;
+    }
+
+    if (quadVAO_ == 0) {
+        spdlog::error("drawFullscreenQuad called but quadVAO is 0!");
+        return;
+    }
     glBindVertexArray(quadVAO_);
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        spdlog::error("glBindVertexArray failed: 0x{:x}", err);
+    }
     glDrawArrays(GL_TRIANGLES, 0, 6);
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+        spdlog::error("glDrawArrays failed: 0x{:x}", err);
+    }
     glBindVertexArray(0);
 }
 

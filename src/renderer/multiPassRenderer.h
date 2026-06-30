@@ -23,6 +23,7 @@ public:
     ~MultiPassRenderer();
 
     void loadPreset(const core::Preset& preset);
+    void cleanup();
 
     uint32_t render(uint32_t inputTexture, uint32_t width, uint32_t height, uint32_t outputFbo = 0);
 
@@ -31,7 +32,10 @@ public:
 
     void reload();
 
+    uint32_t getPassthroughProgram() const { return passthroughProgram_; }
+
 private:
+    void compileIfNeeded();
     void compilePass(const std::string& moduleName);
     void cleanupPasses();
     void cleanupFramebuffers();
@@ -49,6 +53,7 @@ private:
     uint32_t passthroughProgram_;
 
     const core::Preset* currentPreset_;
+    bool needsCompilation_;
 
     // Automatic uniforms
     std::chrono::steady_clock::time_point startTime_;

@@ -64,6 +64,7 @@ private:
     std::map<uint32_t, std::pair<uint32_t, uint32_t>> textureSizes_; // texture ID -> (width, height)
 
     bool initialized_;
+    bool isGLES_;
 };
 
 } // namespace kaisei::backend

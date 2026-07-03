@@ -25,72 +25,44 @@ HyprlandServer* g_server = nullptr;
 HANDLE g_pluginHandle = nullptr;
 
 static std::unique_ptr<core::Registry> g_registry;
-static uint64_t g_frameCount = 0;
 
-static void onRenderStage(eRenderStage stage) {
-    if (stage != RENDER_LAST_MOMENT) {
-        return;
-    }
+// Hook for CHyprOpenGLImpl::end()
+typedef void (*end_t)(Render::GL::CHyprOpenGLImpl*);
+static end_t g_pOriginalEnd = nullptr;
+
+static void hook_end(Render::GL::CHyprOpenGLImpl* thisptr) {
+    g_pOriginalEnd(thisptr);
 
     if (!g_renderer || !g_renderer->isEnabled()) {
         return;
     }
 
-    if (!g_pHyprRenderer) {
-        spdlog::warn("g_pHyprRenderer is null");
-        return;
-    }
-
-    const auto& renderData = g_pHyprRenderer->renderData();
-
-    auto monitor = renderData.pMonitor.lock();
+    auto monitor = g_pHyprRenderer->m_renderData.pMonitor.lock();
     if (!monitor) {
-        spdlog::warn("Monitor is null in render data");
         return;
     }
 
+    const auto& renderData = g_pHyprRenderer->m_renderData;
+    if (!renderData.currentFB) {
+        return;
+    }
+
+    auto tex = renderData.currentFB->getTexture();
+    if (!tex) {
+        return;
+    }
+
+    auto* glFB = dynamic_cast<Render::GL::CGLFramebuffer*>(renderData.currentFB.get());
+    if (!glFB) {
+        return;
+    }
+
+    uint32_t inputTexture = tex->m_texID;
+    uint32_t outputFbo = glFB->getFBID();
     uint32_t width = monitor->m_pixelSize.x;
     uint32_t height = monitor->m_pixelSize.y;
 
-    g_frameCount++;
-
-    uint32_t inputTexture = 0;
-    uint32_t outputFbo = 0;
-
-    if (renderData.mainFB) {
-        auto tex = renderData.mainFB->getTexture();
-        if (tex) {
-            inputTexture = tex->m_texID;
-        }
-    }
-
-    SP<Render::IFramebuffer> targetFB = renderData.outFB;
-    if (!targetFB) {
-        spdlog::warn("outFB is null, falling back to currentFB");
-        targetFB = renderData.currentFB;
-    }
-
-    if (targetFB) {
-        auto* glFB = dynamic_cast<Render::GL::CGLFramebuffer*>(targetFB.get());
-        if (glFB) {
-            outputFbo = glFB->getFBID();
-
-            static bool logged_switch = false;
-            if (!logged_switch) {
-                uint32_t currentFboId = 0;
-                if (renderData.currentFB) {
-                    auto* currentGlFB = dynamic_cast<Render::GL::CGLFramebuffer*>(renderData.currentFB.get());
-                    if (currentGlFB) currentFboId = currentGlFB->getFBID();
-                }
-                spdlog::info("Switched to rendering to outFB: {} (currentFB was: {})", outputFbo, currentFboId);
-                logged_switch = true;
-            }
-        }
-    }
-
-    if (inputTexture > 0 && outputFbo > 0) {
-        g_renderer->render(inputTexture, outputFbo, width, height);
-    }
+    g_renderer->render(inputTexture, outputFbo, width, height);
 }
 
 enum class CommandType {
@@ -192,13 +164,30 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         g_server->start("/tmp/kaisei-hyprland.sock");
         spdlog::debug("Command server started");
 
-        spdlog::debug("Registering render stage listener...");
-        static auto renderListener = Event::bus()->m_events.render.stage.listen(
-            [](eRenderStage stage) {
-                onRenderStage(stage);
+        spdlog::debug("Hooking CHyprOpenGLImpl::end()...");
+        auto endFunctions = HyprlandAPI::findFunctionsByName(handle, "end");
+        void* endAddr = nullptr;
+
+        for (const auto& func : endFunctions) {
+            if (func.demangled.find("CHyprOpenGLImpl::end()") != std::string::npos) {
+                endAddr = func.address;
+                spdlog::info("Found CHyprOpenGLImpl::end() at {}", endAddr);
+                break;
             }
-        );
-        spdlog::debug("Render stage listener registered");
+        }
+
+        if (!endAddr) {
+            spdlog::error("Could not find CHyprOpenGLImpl::end()");
+            throw std::runtime_error("Failed to find end()");
+        }
+
+        static auto endHook = HyprlandAPI::createFunctionHook(handle, endAddr, (void*)&hook_end);
+        if (!endHook->hook()) {
+            spdlog::error("Failed to hook CHyprOpenGLImpl::end()");
+            throw std::runtime_error("Failed to hook end()");
+        }
+        g_pOriginalEnd = (end_t)endHook->m_original;
+        spdlog::debug("Successfully hooked end()");
 
         spdlog::info("Kaisei Hyprland plugin initialized successfully");
 

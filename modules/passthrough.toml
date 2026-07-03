@@ -1,0 +1,8 @@
+[module]
+name = "passthrough"
+description = "Simple passthrough - outputs input texture unchanged"
+version = "1.0.0"
+author = "kaisei"
+
+[shader]
+file = "passthrough.frag"

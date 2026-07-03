@@ -28,13 +28,18 @@ bool OpenGLBackend::initialize() {
         return true;
     }
 
+    // Always load GLAD - it will work in both standalone and Hyprland contexts
     if (!gladLoadGL()) {
         spdlog::error("Failed to initialize glad (OpenGL function loader)");
         return false;
     }
-    spdlog::debug("Loaded OpenGL via GLAD");
 
     const char* versionStr = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    if (versionStr == nullptr) {
+        spdlog::error("No OpenGL context available");
+        return false;
+    }
+
     spdlog::info("OpenGL Version: {}", versionStr);
     spdlog::info("GLSL Version: {}", reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION)));
     spdlog::info("Renderer: {}", reinterpret_cast<const char*>(glGetString(GL_RENDERER)));

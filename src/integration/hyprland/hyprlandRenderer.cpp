@@ -64,7 +64,6 @@ void HyprlandRenderer::render(uint32_t inputTexture, uint32_t outputFbo, uint32_
         return;
     }
 
-    // Create temp FBO to avoid feedback loop
     if (tempFbo_ == 0 || tempWidth_ != width || tempHeight_ != height) {
         if (tempFbo_ != 0) {
             backend_->deleteFramebuffer(tempFbo_);

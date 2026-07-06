@@ -62,6 +62,11 @@ void HyprlandRenderer::render(uint32_t inputTexture, uint32_t outputFbo, uint32_
     }
 
     renderer_->render(inputTexture, width, height, outputFbo);
+
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        spdlog::error("HyprlandRenderer::render: GL error after render: 0x{:x}", err);
+    }
 }
 
 } // namespace kaisei::integration::hyprland

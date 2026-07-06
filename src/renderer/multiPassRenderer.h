@@ -47,6 +47,8 @@ private:
 
     std::vector<RenderPass> passes_;
     std::vector<uint32_t> framebuffers_;
+    uint32_t framebufferWidth_;
+    uint32_t framebufferHeight_;
 
     uint32_t vertexShader_;
     std::string vertexShaderSource_;

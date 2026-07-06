@@ -17,6 +17,7 @@
 #include <hyprland/src/render/Framebuffer.hpp>
 #include <hyprland/src/render/Texture.hpp>
 #include <hyprland/src/render/gl/GLFramebuffer.hpp>
+#include <hyprland/src/render/pass/Pass.hpp>
 
 namespace kaisei::integration::hyprland {
 
@@ -26,47 +27,47 @@ HANDLE g_pluginHandle = nullptr;
 
 static std::unique_ptr<core::Registry> g_registry;
 
-typedef void (*end_t)(Render::GL::CHyprOpenGLImpl*);
-static end_t g_pOriginalEnd = nullptr;
+typedef CRegion (*renderPass_t)(Render::CRenderPass*, const CRegion&);
+static renderPass_t g_pOriginalRenderPass = nullptr;
 
-static void hook_end(Render::GL::CHyprOpenGLImpl* thisptr) {
+static CRegion hook_renderPass(Render::CRenderPass* thisptr, const CRegion& damage) {
+    CRegion result = g_pOriginalRenderPass(thisptr, damage);
+
     if (!g_renderer || !g_renderer->isEnabled()) {
-        g_pOriginalEnd(thisptr);
-        return;
+        return result;
     }
 
     auto monitor = g_pHyprRenderer->m_renderData.pMonitor.lock();
     if (!monitor) {
-        g_pOriginalEnd(thisptr);
-        return;
+        spdlog::warn("hook_renderPass: No monitor");
+        return result;
     }
 
     const auto& renderData = g_pHyprRenderer->m_renderData;
     if (!renderData.currentFB) {
-        g_pOriginalEnd(thisptr);
-        return;
+        spdlog::warn("hook_renderPass: No currentFB");
+        return result;
     }
 
     auto tex = renderData.currentFB->getTexture();
     if (!tex) {
-        g_pOriginalEnd(thisptr);
-        return;
+        return result;
     }
 
     auto* glFB = dynamic_cast<Render::GL::CGLFramebuffer*>(renderData.currentFB.get());
     if (!glFB) {
-        g_pOriginalEnd(thisptr);
-        return;
+        return result;
     }
 
     uint32_t inputTexture = tex->m_texID;
     uint32_t outputFbo = glFB->getFBID();
+
     uint32_t width = monitor->m_pixelSize.x;
     uint32_t height = monitor->m_pixelSize.y;
 
     g_renderer->render(inputTexture, outputFbo, width, height);
 
-    g_pOriginalEnd(thisptr);
+    return result;
 }
 
 enum class CommandType {
@@ -168,30 +169,35 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         g_server->start("/tmp/kaisei-hyprland.sock");
         spdlog::debug("Command server started");
 
-        spdlog::debug("Hooking CHyprOpenGLImpl::end()...");
-        auto endFunctions = HyprlandAPI::findFunctionsByName(handle, "end");
-        void* endAddr = nullptr;
+        spdlog::debug("Hooking CRenderPass::render()...");
+        auto renderFunctions = HyprlandAPI::findFunctionsByName(handle, "render");
+        void* renderAddr = nullptr;
 
-        for (const auto& func : endFunctions) {
-            if (func.demangled.find("CHyprOpenGLImpl::end()") != std::string::npos) {
-                endAddr = func.address;
-                spdlog::info("Found CHyprOpenGLImpl::end() at {}", endAddr);
+        spdlog::debug("Found {} functions with 'render' in name", renderFunctions.size());
+        for (const auto& func : renderFunctions) {
+            if (func.demangled.find("CRenderPass") != std::string::npos) {
+                spdlog::debug("  - {}", func.demangled);
+            }
+            if (func.demangled.find("CRenderPass::render") != std::string::npos &&
+                func.demangled.find("renderDebugData") == std::string::npos) {
+                renderAddr = func.address;
+                spdlog::info("Found CRenderPass::render() at {}", renderAddr);
                 break;
             }
         }
 
-        if (!endAddr) {
-            spdlog::error("Could not find CHyprOpenGLImpl::end()");
-            throw std::runtime_error("Failed to find end()");
+        if (!renderAddr) {
+            spdlog::error("Could not find CRenderPass::render()");
+            throw std::runtime_error("Failed to find CRenderPass::render()");
         }
 
-        static auto endHook = HyprlandAPI::createFunctionHook(handle, endAddr, (void*)&hook_end);
-        if (!endHook->hook()) {
-            spdlog::error("Failed to hook CHyprOpenGLImpl::end()");
-            throw std::runtime_error("Failed to hook end()");
+        static auto renderHook = HyprlandAPI::createFunctionHook(handle, renderAddr, (void*)&hook_renderPass);
+        if (!renderHook->hook()) {
+            spdlog::error("Failed to hook CRenderPass::render()");
+            throw std::runtime_error("Failed to hook CRenderPass::render()");
         }
-        g_pOriginalEnd = (end_t)endHook->m_original;
-        spdlog::debug("Successfully hooked end()");
+        g_pOriginalRenderPass = (renderPass_t)renderHook->m_original;
+        spdlog::debug("Successfully hooked CRenderPass::render()");
 
         spdlog::info("Kaisei Hyprland plugin initialized successfully");
 

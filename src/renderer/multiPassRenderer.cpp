@@ -32,6 +32,8 @@ MultiPassRenderer::MultiPassRenderer(backend::Backend& backend, core::ModuleLoad
       passthroughProgram_(0),
       currentPreset_(nullptr),
       needsCompilation_(true),
+      framebufferWidth_(0),
+      framebufferHeight_(0),
       startTime_(std::chrono::steady_clock::now()),
       lastFrameTime_(std::chrono::steady_clock::now()),
       frameCount_(0),
@@ -134,13 +136,19 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
         framebuffers_.push_back(backend_.createFramebuffer(width, height));
     }
 
+    // Check if we have a read/write conflict (inputTexture == outputFbo)
+    // This happens when Hyprland gives us the same ID for both
+    bool needsIntermediateCopy = (outputFbo != 0 && inputTexture == outputFbo);
+
     uint32_t currentInput = inputTexture;
     uint32_t currentFBO = 0;
 
     for (size_t i = 0; i < passes_.size(); ++i) {
         const auto& pass = passes_[i];
 
-        if (i == passes_.size() - 1 && outputFbo != 0) {
+        // If we have a read/write conflict, never render directly to outputFbo
+        // Always use intermediate FBOs, then copy at the end
+        if (i == passes_.size() - 1 && outputFbo != 0 && !needsIntermediateCopy) {
             currentFBO = outputFbo;
         } else {
             currentFBO = framebuffers_[i % 2];
@@ -203,6 +211,23 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
         if (i < passes_.size() - 1) {
             currentInput = backend_.getFramebufferTexture(currentFBO);
         }
+    }
+
+    // If we had a read/write conflict, we rendered to an intermediate FBO
+    // Now copy the result to the output FBO
+    if (needsIntermediateCopy) {
+        uint32_t finalTexture = backend_.getFramebufferTexture(currentFBO);
+
+        backend_.bindFramebuffer(outputFbo);
+        backend_.setViewport(0, 0, width, height);
+        backend_.clear(0.0f, 0.0f, 0.0f, 1.0f);
+
+        backend_.useProgram(passthroughProgram_);
+        setAutomaticUniforms(passthroughProgram_, finalTexture, width, height, now);
+
+        backend_.bindTexture(finalTexture, 0);
+        backend_.setUniformInt(passthroughProgram_, "u_inputTexture", 0);
+        backend_.drawFullscreenQuad();
     }
 
     frameCount_++;

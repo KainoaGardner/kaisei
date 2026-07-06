@@ -26,34 +26,36 @@ HANDLE g_pluginHandle = nullptr;
 
 static std::unique_ptr<core::Registry> g_registry;
 
-// Hook for CHyprOpenGLImpl::end()
 typedef void (*end_t)(Render::GL::CHyprOpenGLImpl*);
 static end_t g_pOriginalEnd = nullptr;
 
 static void hook_end(Render::GL::CHyprOpenGLImpl* thisptr) {
-    g_pOriginalEnd(thisptr);
-
     if (!g_renderer || !g_renderer->isEnabled()) {
+        g_pOriginalEnd(thisptr);
         return;
     }
 
     auto monitor = g_pHyprRenderer->m_renderData.pMonitor.lock();
     if (!monitor) {
+        g_pOriginalEnd(thisptr);
         return;
     }
 
     const auto& renderData = g_pHyprRenderer->m_renderData;
     if (!renderData.currentFB) {
+        g_pOriginalEnd(thisptr);
         return;
     }
 
     auto tex = renderData.currentFB->getTexture();
     if (!tex) {
+        g_pOriginalEnd(thisptr);
         return;
     }
 
     auto* glFB = dynamic_cast<Render::GL::CGLFramebuffer*>(renderData.currentFB.get());
     if (!glFB) {
+        g_pOriginalEnd(thisptr);
         return;
     }
 
@@ -63,6 +65,8 @@ static void hook_end(Render::GL::CHyprOpenGLImpl* thisptr) {
     uint32_t height = monitor->m_pixelSize.y;
 
     g_renderer->render(inputTexture, outputFbo, width, height);
+
+    g_pOriginalEnd(thisptr);
 }
 
 enum class CommandType {

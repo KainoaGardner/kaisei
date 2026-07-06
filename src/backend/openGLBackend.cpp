@@ -116,41 +116,14 @@ uint32_t OpenGLBackend::compileShader(const std::string& source, uint32_t type) 
         spdlog::warn("Shader compilation warning ({} shader): {}", typeName, logMessage);
     }
 
-    spdlog::debug("Successfully compiled {} shader (ID: {})", typeName, shader);
     return shader;
 }
 
 uint32_t OpenGLBackend::linkProgram(uint32_t vertexShader, uint32_t fragmentShader) {
-    spdlog::debug("Linking program with vertex={}, fragment={}", vertexShader, fragmentShader);
-
     GLuint program = glCreateProgram();
-    if (program == 0) {
-        GLenum err = glGetError();
-        spdlog::error("glCreateProgram failed, OpenGL error: 0x{:x}", err);
-        throw std::runtime_error("Failed to create program object");
-    }
-    spdlog::debug("Created program: {}", program);
-
-    spdlog::debug("Attaching vertex shader...");
     glAttachShader(program, vertexShader);
-    GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
-        spdlog::error("glAttachShader(vertex) failed, error: 0x{:x}", err);
-    }
-
-    spdlog::debug("Attaching fragment shader...");
     glAttachShader(program, fragmentShader);
-    err = glGetError();
-    if (err != GL_NO_ERROR) {
-        spdlog::error("glAttachShader(fragment) failed, error: 0x{:x}", err);
-    }
-
-    spdlog::debug("Linking program...");
     glLinkProgram(program);
-    err = glGetError();
-    if (err != GL_NO_ERROR) {
-        spdlog::error("glLinkProgram failed, error: 0x{:x}", err);
-    }
 
     GLint success;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
@@ -174,7 +147,6 @@ uint32_t OpenGLBackend::linkProgram(uint32_t vertexShader, uint32_t fragmentShad
         spdlog::warn("Program linking warning: {}", logMessage);
     }
 
-    spdlog::debug("Successfully linked program: {}", program);
     return program;
 }
 
@@ -345,26 +317,8 @@ void OpenGLBackend::clear(float r, float g, float b, float a) {
 }
 
 void OpenGLBackend::drawFullscreenQuad() {
-    static bool first_draw = true;
-    if (first_draw) {
-        spdlog::info("First drawFullscreenQuad call: quadVAO_={}", quadVAO_);
-        first_draw = false;
-    }
-
-    if (quadVAO_ == 0) {
-        spdlog::error("drawFullscreenQuad called but quadVAO is 0!");
-        return;
-    }
     glBindVertexArray(quadVAO_);
-    GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
-        spdlog::error("glBindVertexArray failed: 0x{:x}", err);
-    }
     glDrawArrays(GL_TRIANGLES, 0, 6);
-    err = glGetError();
-    if (err != GL_NO_ERROR) {
-        spdlog::error("glDrawArrays failed: 0x{:x}", err);
-    }
     glBindVertexArray(0);
 }
 

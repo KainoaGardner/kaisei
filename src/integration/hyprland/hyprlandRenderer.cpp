@@ -2,23 +2,20 @@
 
 #include <GLES3/gl32.h>
 #include <spdlog/spdlog.h>
-#include "backend/openGLBackend.h"
+#include "integration/hyprland/hyprlandBackend.h"
 #include "utils/format.h"
 
 namespace kaisei::integration::hyprland {
 
 HyprlandRenderer::HyprlandRenderer(core::Registry& registry)
-    : registry_(registry), enabled_(false), tempFbo_(0), tempWidth_(0), tempHeight_(0) {
-    backend_ = std::make_unique<backend::OpenGLBackend>();
+    : registry_(registry), enabled_(false) {
+    backend_ = std::make_unique<HyprlandOpenGLBackend>();
     if (!backend_->initialize()) {
-        throw std::runtime_error("Failed to initialize backend");
+        throw std::runtime_error("Failed to initialize Hyprland backend");
     }
 }
 
 HyprlandRenderer::~HyprlandRenderer() {
-    if (tempFbo_ != 0) {
-        backend_->deleteFramebuffer(tempFbo_);
-    }
 }
 
 void HyprlandRenderer::loadPreset(const std::string& name) {
@@ -64,27 +61,7 @@ void HyprlandRenderer::render(uint32_t inputTexture, uint32_t outputFbo, uint32_
         return;
     }
 
-    if (tempFbo_ == 0 || tempWidth_ != width || tempHeight_ != height) {
-        if (tempFbo_ != 0) {
-            backend_->deleteFramebuffer(tempFbo_);
-        }
-        tempFbo_ = backend_->createFramebuffer(width, height);
-        tempWidth_ = width;
-        tempHeight_ = height;
-    }
-
-    renderer_->render(inputTexture, width, height, tempFbo_);
-
-    uint32_t resultTexture = backend_->getFramebufferTexture(tempFbo_);
-
-    backend_->bindFramebuffer(outputFbo);
-    backend_->setViewport(0, 0, width, height);
-
-    uint32_t passthroughProg = renderer_->getPassthroughProgram();
-    backend_->useProgram(passthroughProg);
-    backend_->bindTexture(resultTexture, 0);
-    backend_->setUniformInt(passthroughProg, "u_inputTexture", 0);
-    backend_->drawFullscreenQuad();
+    renderer_->render(inputTexture, width, height, outputFbo);
 }
 
 } // namespace kaisei::integration::hyprland

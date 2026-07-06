@@ -122,6 +122,7 @@ add_library(kaisei-hyprland SHARED
     integration/hyprland/hyprlandPlugin.cpp
     integration/hyprland/hyprlandRenderer.cpp
     integration/hyprland/hyprlandServer.cpp
+    integration/hyprland/hyprlandBackend.cpp
 )
 
 target_include_directories(kaisei-hyprland PRIVATE

@@ -30,11 +30,6 @@ private:
 
     std::string currentPreset_;
     bool enabled_;
-
-    // Temp FBO for POST_WINDOWS in-place processing
-    uint32_t tempFbo_;
-    uint32_t tempWidth_;
-    uint32_t tempHeight_;
 };
 
 } // namespace kaisei::integration::hyprland

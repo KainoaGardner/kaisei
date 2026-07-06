@@ -132,12 +132,20 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
         return inputTexture;
     }
 
+    if (framebufferWidth_ != width || framebufferHeight_ != height) {
+        if (!framebuffers_.empty()) {
+            spdlog::info("Screen size changed from {}x{} to {}x{}, recreating framebuffers",
+                        framebufferWidth_, framebufferHeight_, width, height);
+            cleanupFramebuffers();
+        }
+        framebufferWidth_ = width;
+        framebufferHeight_ = height;
+    }
+
     while (framebuffers_.size() < 2) {
         framebuffers_.push_back(backend_.createFramebuffer(width, height));
     }
 
-    // Check if we have a read/write conflict (inputTexture == outputFbo)
-    // This happens when Hyprland gives us the same ID for both
     bool needsIntermediateCopy = (outputFbo != 0 && inputTexture == outputFbo);
 
     uint32_t currentInput = inputTexture;
@@ -145,9 +153,6 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
 
     for (size_t i = 0; i < passes_.size(); ++i) {
         const auto& pass = passes_[i];
-
-        // If we have a read/write conflict, never render directly to outputFbo
-        // Always use intermediate FBOs, then copy at the end
         if (i == passes_.size() - 1 && outputFbo != 0 && !needsIntermediateCopy) {
             currentFBO = outputFbo;
         } else {
@@ -213,8 +218,6 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
         }
     }
 
-    // If we had a read/write conflict, we rendered to an intermediate FBO
-    // Now copy the result to the output FBO
     if (needsIntermediateCopy) {
         uint32_t finalTexture = backend_.getFramebufferTexture(currentFBO);
 

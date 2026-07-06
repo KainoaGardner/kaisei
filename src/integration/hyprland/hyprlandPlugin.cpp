@@ -39,13 +39,11 @@ static CRegion hook_renderPass(Render::CRenderPass* thisptr, const CRegion& dama
 
     auto monitor = g_pHyprRenderer->m_renderData.pMonitor.lock();
     if (!monitor) {
-        spdlog::warn("hook_renderPass: No monitor");
         return result;
     }
 
     const auto& renderData = g_pHyprRenderer->m_renderData;
     if (!renderData.currentFB) {
-        spdlog::warn("hook_renderPass: No currentFB");
         return result;
     }
 
@@ -61,7 +59,6 @@ static CRegion hook_renderPass(Render::CRenderPass* thisptr, const CRegion& dama
 
     uint32_t inputTexture = tex->m_texID;
     uint32_t outputFbo = glFB->getFBID();
-
     uint32_t width = monitor->m_pixelSize.x;
     uint32_t height = monitor->m_pixelSize.y;
 

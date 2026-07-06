@@ -57,7 +57,6 @@ private:
     const core::Preset* currentPreset_;
     bool needsCompilation_;
 
-    // Automatic uniforms
     std::chrono::steady_clock::time_point startTime_;
     std::chrono::steady_clock::time_point lastFrameTime_;
     uint32_t frameCount_;

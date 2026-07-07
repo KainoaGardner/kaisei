@@ -42,6 +42,7 @@ void Registry::loadDefaultPaths() {
     addModuleSearchPath(home / ".config/kaisei/modules");
     addPresetSearchPath(home / ".config/kaisei/presets");
 
+    moduleLoader_.setStandardSavePath(home / ".config/kaisei/modules");
     setPresetSavePath(home / ".config/kaisei/presets");
 
     spdlog::debug("Loaded default search paths");

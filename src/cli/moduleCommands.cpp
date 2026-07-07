@@ -17,10 +17,28 @@ void ModuleCommands::setup(CLI::App* module, core::Registry& registry) {
 
     // module info
     auto* info = module->add_subcommand("info", "Show module details");
-    static std::string name;
+    static std::string infoName;
 
-    info->add_option("name", name, "Module name")->required();
-    info->callback([&]() { ModuleCommands::info(registry, name); });
+    info->add_option("name", infoName, "Module name")->required();
+    info->callback([&]() { ModuleCommands::info(registry, infoName); });
+
+    // module create
+    auto* create = module->add_subcommand("create", "Create a new module");
+    static std::string createName;
+    static std::string version = "1.0";
+    static std::string description = "";
+
+    create->add_option("name", createName, "Module name")->required();
+    create->add_option("--version,-v", version, "Module version (default: 1.0)");
+    create->add_option("--description,-d", description, "Module description");
+    create->callback([&]() { ModuleCommands::create(registry, createName, version, description); });
+
+    // module delete
+    auto* del = module->add_subcommand("delete", "Delete a module");
+    static std::string deleteName;
+
+    del->add_option("name", deleteName, "Module name")->required();
+    del->callback([&]() { ModuleCommands::deleteModule(registry, deleteName); });
 }
 
 void ModuleCommands::list(core::Registry& registry, const std::string& tag) {
@@ -120,6 +138,30 @@ void ModuleCommands::info(core::Registry& registry, const std::string& name) {
                 std::cout << "    " << texture.description << "\n";
             }
         }
+    }
+}
+
+void ModuleCommands::create(core::Registry& registry, const std::string& name,
+                            const std::string& version, const std::string& description) {
+    try {
+        registry.modules().createModule(name, version, description);
+        std::cout << utils::bold("Created module: ") << name << "\n";
+        std::cout << "Files created in ~/.config/kaisei/modules/:\n";
+        std::cout << "  - " << name << ".toml\n";
+        std::cout << "  - " << name << ".frag\n";
+        std::cout << "\nEdit these files to customize your module.\n";
+        std::cout << "Then reload modules with: " << utils::bold("kaisei reload") << "\n";
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to create module: {}", e.what());
+    }
+}
+
+void ModuleCommands::deleteModule(core::Registry& registry, const std::string& name) {
+    try {
+        registry.modules().deleteModule(name);
+        std::cout << utils::bold("Deleted module: ") << name << "\n";
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to delete module: {}", e.what());
     }
 }
 

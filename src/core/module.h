@@ -9,8 +9,8 @@
 namespace kaisei::core {
 
 enum class EffectType {
-    Module,  // Simple 1 pass effect
-    Stage    // Multi-pass effect
+    Module,  // Simple 1 pass
+    Stage    // Multi-pass
 };
 
 struct UniformDeclaration {
@@ -28,6 +28,12 @@ struct TextureInput {
     bool optional;
 };
 
+struct Pass {
+    std::string name;
+    std::string file;
+    std::string shaderSource;
+};
+
 struct ModuleMetadata {
     std::string name;
     std::string version;
@@ -36,17 +42,12 @@ struct ModuleMetadata {
     std::vector<std::string> tags;
     EffectType type;
 
-    std::vector<std::string> requiredModules;
-    std::vector<std::string> conflictsWith;
-
     std::vector<UniformDeclaration> uniforms;
     std::vector<TextureInput> textures;
 
     std::string shaderFile;
-    bool fusible;
-    int fusionPriority;
-    std::string inputVariable;
-    std::string outputVariable;
+
+    std::vector<Pass> passes;
 };
 
 class Module {
@@ -57,11 +58,15 @@ public:
     const std::string& shaderSource() const { return shaderSource_; }
     const std::filesystem::path& path() const { return modulePath_; }
 
+    bool isMultiPass() const { return metadata_.type == EffectType::Stage; }
+    const std::vector<Pass>& passes() const { return metadata_.passes; }
+
     std::string getProcessedShader() const;
 
 private:
     void loadMetadata(const std::filesystem::path& tomlFile);
     void loadShader(const std::filesystem::path& shaderFile);
+    void loadPasses(const std::filesystem::path& baseDir);
 
     ModuleMetadata metadata_;
     std::string shaderSource_;

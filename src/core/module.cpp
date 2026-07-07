@@ -28,8 +28,12 @@ Module::Module(const std::filesystem::path& moduleFile) : modulePath_(moduleFile
 
     loadMetadata(moduleFile);
 
-    auto shaderFile = modulePath_ / metadata_.shaderFile;
-    loadShader(shaderFile);
+    if (metadata_.type == EffectType::Module) {
+        auto shaderFile = modulePath_ / metadata_.shaderFile;
+        loadShader(shaderFile);
+    } else if (metadata_.type == EffectType::Stage) {
+        loadPasses(modulePath_);
+    }
 
     spdlog::info("Loaded module: {} ({})", metadata_.name, metadata_.description);
 }
@@ -55,24 +59,6 @@ void Module::loadMetadata(const std::filesystem::path& tomlFile) {
 
         auto shader = config["shader"];
         metadata_.shaderFile = shader["file"].value_or<std::string>("");
-        metadata_.fusible = shader["fusible"].value_or(true);
-        metadata_.fusionPriority = shader["fusion_priority"].value_or(0);
-        metadata_.inputVariable = shader["input_variable"].value_or<std::string>("inputColor");
-        metadata_.outputVariable = shader["output_variable"].value_or<std::string>("fragColor");
-
-        if (config["dependencies"]) {
-            auto deps = config["dependencies"];
-            if (auto requiredArray = deps["requires"].as_array()) {
-                for (auto& req : *requiredArray) {
-                    metadata_.requiredModules.push_back(req.value_or<std::string>(""));
-                }
-            }
-            if (auto conflictsArray = deps["conflicts"].as_array()) {
-                for (auto& conf : *conflictsArray) {
-                    metadata_.conflictsWith.push_back(conf.value_or<std::string>(""));
-                }
-            }
-        }
 
         if (auto uniformsArray = config["uniforms"].as_array()) {
             for (auto& uniformNode : *uniformsArray) {
@@ -132,9 +118,52 @@ void Module::loadShader(const std::filesystem::path& shaderFile) {
     }
 }
 
+void Module::loadPasses(const std::filesystem::path& baseDir) {
+    try {
+        auto tomlPath = baseDir / (metadata_.name + ".toml");
+        auto config = toml::parse_file(tomlPath.string());
+
+        if (auto passesArray = config["passes"].as_array()) {
+            for (auto& passNode : *passesArray) {
+                auto passTable = passNode.as_table();
+                if (!passTable) continue;
+
+                Pass pass;
+                pass.name = (*passTable)["name"].value_or<std::string>("");
+                pass.file = (*passTable)["file"].value_or<std::string>("");
+
+                if (pass.file.empty()) {
+                    throw std::runtime_error("Pass missing 'file' field");
+                }
+
+                auto passShaderFile = baseDir / pass.file;
+                std::ifstream file(passShaderFile);
+                if (!file.is_open()) {
+                    throw std::runtime_error("Failed to open pass shader file: " + passShaderFile.string());
+                }
+
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                pass.shaderSource = buffer.str();
+
+                if (pass.shaderSource.empty()) {
+                    throw std::runtime_error("Pass shader file is empty: " + passShaderFile.string());
+                }
+
+                metadata_.passes.push_back(pass);
+            }
+        }
+
+        if (metadata_.passes.empty()) {
+            throw std::runtime_error("Stage effect must have at least one pass");
+        }
+
+    } catch (const toml::parse_error& err) {
+        throw std::runtime_error("Failed to parse passes: " + std::string(err.what()));
+    }
+}
+
 std::string Module::getProcessedShader() const {
-    // TODO: Phase 1 - simple pass-through
-    // TODO: Phase 2 - resolve #include directives from shaders/common.glsl
     return shaderSource_;
 }
 

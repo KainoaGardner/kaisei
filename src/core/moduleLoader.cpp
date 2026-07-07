@@ -1,6 +1,7 @@
 #include "core/moduleLoader.h"
 
 #include <algorithm>
+#include <fstream>
 #include <stdexcept>
 
 #include <spdlog/spdlog.h>
@@ -99,6 +100,246 @@ std::vector<const Module*> ModuleLoader::findByTag(const std::string& tag) const
     }
 
     return result;
+}
+
+void ModuleLoader::setStandardSavePath(const std::filesystem::path& path) {
+    standardSavePath_ = path;
+
+    if (!std::filesystem::exists(standardSavePath_)) {
+        std::filesystem::create_directories(standardSavePath_);
+        spdlog::info("Created module save directory: {}", standardSavePath_.string());
+    }
+
+    spdlog::debug("Set standard module save path: {}", path.string());
+}
+
+std::filesystem::path ModuleLoader::getModuleBasePath(const std::string& name) const {
+    if (standardSavePath_.empty()) {
+        throw std::runtime_error("Standard save path not set");
+    }
+    return standardSavePath_ / name;
+}
+
+void ModuleLoader::createModule(const std::string& name,
+                                const std::string& version,
+                                const std::string& description,
+                                bool stage) {
+    if (modules_.count(name)) {
+        throw std::runtime_error("Module already exists: " + name);
+    }
+
+    if (!std::filesystem::exists(standardSavePath_)) {
+        std::filesystem::create_directories(standardSavePath_);
+    }
+
+    auto tomlPath = standardSavePath_ / (name + ".toml");
+    auto fragPath = standardSavePath_ / (name + ".frag");
+
+    std::ofstream tomlFile(tomlPath);
+    if (!tomlFile.is_open()) {
+        throw std::runtime_error("Failed to create module file: " + tomlPath.string());
+    }
+
+    tomlFile << "[module]\n";
+    tomlFile << "name = \"" << name << "\"\n";
+    tomlFile << "version = \"" << version << "\"\n";
+    tomlFile << "author = \"\"\n";
+    tomlFile << "description = \"" << description << "\"\n";
+    tomlFile << "tags = []\n";
+    tomlFile << "type = \"" << (stage ? "stage" : "module") << "\"  # Type: \"module\" for single-pass effects, \"stage\" for multi-pass\n";
+    tomlFile << "\n";
+
+    if (stage) {
+        tomlFile << "# Multi-pass shader configuration\n";
+        tomlFile << "# Each pass processes the output of the previous pass\n";
+        tomlFile << "[[passes]]\n";
+        tomlFile << "name = \"pass1\"\n";
+        tomlFile << "file = \"" << name << "_pass1.frag\"\n";
+        tomlFile << "\n";
+        tomlFile << "[[passes]]\n";
+        tomlFile << "name = \"pass2\"\n";
+        tomlFile << "file = \"" << name << "_pass2.frag\"\n";
+        tomlFile << "\n";
+    } else {
+        tomlFile << "[shader]\n";
+        tomlFile << "file = \"" << name << ".frag\"\n";
+        tomlFile << "\n";
+    }
+
+    tomlFile << "# Add custom parameters for your shader\n";
+    tomlFile << "# [[uniforms]]\n";
+    tomlFile << "# name = \"u_intensity\"\n";
+    tomlFile << "# type = \"float\"\n";
+    tomlFile << "# default = \"1.0\"\n";
+    tomlFile << "# description = \"Effect intensity\"\n";
+    tomlFile << "# min = 0.0\n";
+    tomlFile << "# max = 2.0\n";
+    tomlFile.close();
+
+    if (stage) {
+        auto fragPath1 = standardSavePath_ / (name + "_pass1.frag");
+        auto fragPath2 = standardSavePath_ / (name + "_pass2.frag");
+
+        std::ofstream fragFile1(fragPath1);
+        if (!fragFile1.is_open()) {
+            throw std::runtime_error("Failed to create shader file: " + fragPath1.string());
+        }
+
+        fragFile1 << "// " << name << " - Pass 1 - " << description << "\n";
+        fragFile1 << "// Version: " << version << "\n";
+        fragFile1 << "#version 450 core\n";
+        fragFile1 << "\n";
+        fragFile1 << "in vec2 v_texCoord;\n";
+        fragFile1 << "out vec4 fragColor;\n";
+        fragFile1 << "\n";
+        fragFile1 << "uniform sampler2D u_inputTexture;\n";
+        fragFile1 << "\n";
+        fragFile1 << "// Additional automatic uniforms available:\n";
+        fragFile1 << "// uniform vec2 u_resolution;         // Screen resolution\n";
+        fragFile1 << "// uniform vec2 u_texelSize;          // 1.0 / u_resolution\n";
+        fragFile1 << "// uniform float u_time;              // Time in seconds\n";
+        fragFile1 << "// uniform float u_deltaTime;         // Time since last frame\n";
+        fragFile1 << "\n";
+        fragFile1 << "void main() {\n";
+        fragFile1 << "    vec4 inputColor = texture(u_inputTexture, v_texCoord);\n";
+        fragFile1 << "\n";
+        fragFile1 << "    // First pass - modify inputColor here\n";
+        fragFile1 << "\n";
+        fragFile1 << "    fragColor = vec4(inputColor);\n";
+        fragFile1 << "}\n";
+        fragFile1.close();
+
+        std::ofstream fragFile2(fragPath2);
+        if (!fragFile2.is_open()) {
+            throw std::runtime_error("Failed to create shader file: " + fragPath2.string());
+        }
+
+        fragFile2 << "// " << name << " - Pass 2 - " << description << "\n";
+        fragFile2 << "// Version: " << version << "\n";
+        fragFile2 << "#version 450 core\n";
+        fragFile2 << "\n";
+        fragFile2 << "in vec2 v_texCoord;\n";
+        fragFile2 << "out vec4 fragColor;\n";
+        fragFile2 << "\n";
+        fragFile2 << "uniform sampler2D u_inputTexture;\n";
+        fragFile2 << "\n";
+        fragFile2 << "// Additional automatic uniforms available:\n";
+        fragFile2 << "// uniform vec2 u_resolution;         // Screen resolution\n";
+        fragFile2 << "// uniform vec2 u_texelSize;          // 1.0 / u_resolution\n";
+        fragFile2 << "// uniform float u_time;              // Time in seconds\n";
+        fragFile2 << "// uniform float u_deltaTime;         // Time since last frame\n";
+        fragFile2 << "\n";
+        fragFile2 << "void main() {\n";
+        fragFile2 << "    vec4 inputColor = texture(u_inputTexture, v_texCoord);\n";
+        fragFile2 << "\n";
+        fragFile2 << "    // Second pass - modify inputColor here\n";
+        fragFile2 << "\n";
+        fragFile2 << "    fragColor = vec4(inputColor);\n";
+        fragFile2 << "}\n";
+        fragFile2.close();
+
+        spdlog::info("Created multi-pass module '{}' at {}, {}, and {}", name, tomlPath.string(), fragPath1.string(), fragPath2.string());
+    } else {
+        std::ofstream fragFile(fragPath);
+        if (!fragFile.is_open()) {
+            throw std::runtime_error("Failed to create shader file: " + fragPath.string());
+        }
+
+        fragFile << "// " << name << " - " << description << "\n";
+        fragFile << "// Version: " << version << "\n";
+        fragFile << "#version 450 core\n";
+        fragFile << "\n";
+        fragFile << "in vec2 v_texCoord;\n";
+        fragFile << "out vec4 fragColor;\n";
+        fragFile << "\n";
+        fragFile << "uniform sampler2D u_inputTexture;\n";
+        fragFile << "\n";
+        fragFile << "// Additional automatic uniforms available:\n";
+        fragFile << "// uniform vec2 u_resolution;         // Screen resolution\n";
+        fragFile << "// uniform vec2 u_texelSize;          // 1.0 / u_resolution\n";
+        fragFile << "// uniform float u_time;              // Time in seconds\n";
+        fragFile << "// uniform float u_deltaTime;         // Time since last frame\n";
+        fragFile << "\n";
+        fragFile << "void main() {\n";
+        fragFile << "    vec4 inputColor = texture(u_inputTexture, v_texCoord);\n";
+        fragFile << "\n";
+        fragFile << "    // Passthrough - modify inputColor here to create your effect\n";
+        fragFile << "\n";
+        fragFile << "    fragColor = vec4(inputColor);\n";
+        fragFile << "}\n";
+        fragFile.close();
+
+        spdlog::info("Created module '{}' at {} and {}", name, tomlPath.string(), fragPath.string());
+    }
+
+    spdlog::info("Edit the files to customize your module, then reload with 'kaisei module reload'");
+}
+
+void ModuleLoader::deleteModule(const std::string& name) {
+    std::filesystem::path tomlPath;
+    std::filesystem::path fragPath;
+    bool foundInMemory = false;
+
+    auto it = modules_.find(name);
+    if (it != modules_.end()) {
+        auto modulePath = it->second->path();
+        auto baseDir = modulePath.parent_path();
+        auto baseName = modulePath.stem().string();
+        tomlPath = baseDir / (baseName + ".toml");
+        fragPath = baseDir / (baseName + ".frag");
+        foundInMemory = true;
+        spdlog::debug("Found module '{}' in memory at {}", name, tomlPath.string());
+    } else {
+        spdlog::debug("Module '{}' not in memory, searching {} paths on disk", name, searchPaths_.size());
+        bool found = false;
+        for (const auto& searchPath : searchPaths_) {
+            spdlog::debug("  Checking search path: {}", searchPath.string());
+            if (!std::filesystem::exists(searchPath)) {
+                spdlog::debug("    Path does not exist");
+                continue;
+            }
+
+            auto potentialToml = searchPath / (name + ".toml");
+            auto potentialFrag = searchPath / (name + ".frag");
+            spdlog::debug("    Looking for: {}", potentialToml.string());
+
+            if (std::filesystem::exists(potentialToml)) {
+                tomlPath = potentialToml;
+                fragPath = potentialFrag;
+                found = true;
+                spdlog::debug("    Found!");
+                break;
+            }
+        }
+
+        if (!found) {
+            throw std::runtime_error("Module '" + name + "' not found in memory or on disk");
+        }
+    }
+
+    bool deletedAny = false;
+
+    if (std::filesystem::exists(tomlPath)) {
+        std::filesystem::remove(tomlPath);
+        spdlog::info("Deleted module file: {}", tomlPath.string());
+        deletedAny = true;
+    }
+
+    if (std::filesystem::exists(fragPath)) {
+        std::filesystem::remove(fragPath);
+        spdlog::info("Deleted shader file: {}", fragPath.string());
+        deletedAny = true;
+    }
+
+    if (foundInMemory) {
+        modules_.erase(it);
+    }
+
+    if (deletedAny) {
+        spdlog::info("Deleted module '{}'", name);
+    } else {
+        spdlog::warn("No files found to delete for module '{}'", name);
+    }
 }
 
 void ModuleLoader::reload() {

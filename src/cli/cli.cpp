@@ -3,8 +3,10 @@
 #include "cli/moduleCommands.h"
 #include "cli/integrations/previewCommands.h"
 #include "cli/integrations/hyprlandCommands.h"
+#include "utils/format.h"
 
 #include <spdlog/spdlog.h>
+#include <iostream>
 
 namespace kaisei::cli {
 
@@ -21,6 +23,7 @@ CLIApp::CLIApp() {
 
 void CLIApp::setupCommands() {
     setupGlobalOptions();
+    setupReloadCommand();
     setupModuleCommands();
     setupPresetCommands();
     setupPreviewCommands();
@@ -31,6 +34,24 @@ void CLIApp::setupGlobalOptions() {
     app_->add_flag_callback("--verbose,-v",
         []() { spdlog::set_level(spdlog::level::debug);},
         "Enable verbose logging");
+}
+
+void CLIApp::setupReloadCommand() {
+    auto* reload = app_->add_subcommand("reload", "Reload all modules and presets from disk");
+    reload->callback([this]() {
+        try {
+            registry_.reload();
+            std::cout << utils::bold("Reloaded modules and presets\n");
+
+            auto modules = registry_.modules().listModules();
+            auto presets = registry_.presets().listPresets();
+
+            std::cout << "  Modules: " << modules.size() << "\n";
+            std::cout << "  Presets: " << presets.size() << "\n";
+        } catch (const std::exception& e) {
+            spdlog::error("Failed to reload: {}", e.what());
+        }
+    });
 }
 
 void CLIApp::setupModuleCommands() {

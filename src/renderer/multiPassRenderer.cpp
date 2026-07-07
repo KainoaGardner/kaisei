@@ -117,18 +117,35 @@ void MultiPassRenderer::compilePass(const std::string& moduleName) {
         throw std::runtime_error("Module not found: " + moduleName);
     }
 
-    uint32_t fragShader = backend_.compileShader(
-        module->shaderSource(),
-        backend::Backend::FRAGMENT_SHADER
-    );
+    if (module->isMultiPass()) {
+        for (const auto& pass : module->passes()) {
+            uint32_t fragShader = backend_.compileShader(
+                pass.shaderSource,
+                backend::Backend::FRAGMENT_SHADER
+            );
 
-    uint32_t program = backend_.linkProgram(vertexShader_, fragShader);
+            uint32_t program = backend_.linkProgram(vertexShader_, fragShader);
 
-    glDeleteShader(fragShader);
+            glDeleteShader(fragShader);
 
-    passes_.push_back({program, moduleName});
+            passes_.push_back({program, moduleName});
 
-    spdlog::debug("Compiled pass for module '{}'", moduleName);
+            spdlog::debug("Compiled pass '{}' for multi-pass module '{}'", pass.name, moduleName);
+        }
+    } else {
+        uint32_t fragShader = backend_.compileShader(
+            module->shaderSource(),
+            backend::Backend::FRAGMENT_SHADER
+        );
+
+        uint32_t program = backend_.linkProgram(vertexShader_, fragShader);
+
+        glDeleteShader(fragShader);
+
+        passes_.push_back({program, moduleName});
+
+        spdlog::debug("Compiled pass for module '{}'", moduleName);
+    }
 }
 
 uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32_t height, uint32_t outputFbo) {

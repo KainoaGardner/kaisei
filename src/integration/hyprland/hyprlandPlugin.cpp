@@ -31,21 +31,18 @@ typedef CRegion (*renderPass_t)(Render::CRenderPass*, const CRegion&);
 static renderPass_t g_pOriginalRenderPass = nullptr;
 
 static CRegion hook_renderPass(Render::CRenderPass* thisptr, const CRegion& damage) {
-    bool shouldProcess = false;
-    if (g_renderer && g_renderer->isEnabled()) {
-        const auto& renderData = g_pHyprRenderer->m_renderData;
-        if (renderData.currentFB && renderData.mainFB && renderData.currentFB == renderData.mainFB) {
-            shouldProcess = true;
-        }
-    }
+    const auto& renderData = g_pHyprRenderer->m_renderData;
+    bool shouldProcess = g_renderer && g_renderer->isEnabled() &&
+                        renderData.currentFB && renderData.mainFB &&
+                        renderData.currentFB == renderData.mainFB;
 
-    // If we're going to apply shader AND there's damage, force full damage so entire FB is rendered
     CRegion useDamage = damage;
     if (shouldProcess && !damage.empty()) {
-        auto monitor = g_pHyprRenderer->m_renderData.pMonitor.lock();
+        auto monitor = renderData.pMonitor.lock();
         if (monitor) {
             useDamage.clear();
-            useDamage.add(CBox{0.0, 0.0, static_cast<double>(monitor->m_pixelSize.x), static_cast<double>(monitor->m_pixelSize.y)});
+            useDamage.add(CBox{0.0, 0.0, static_cast<double>(monitor->m_pixelSize.x),
+                              static_cast<double>(monitor->m_pixelSize.y)});
         }
     }
 
@@ -55,12 +52,11 @@ static CRegion hook_renderPass(Render::CRenderPass* thisptr, const CRegion& dama
         return result;
     }
 
-    auto monitor = g_pHyprRenderer->m_renderData.pMonitor.lock();
+    auto monitor = renderData.pMonitor.lock();
     if (!monitor) {
         return result;
     }
 
-    const auto& renderData = g_pHyprRenderer->m_renderData;
     auto tex = renderData.currentFB->getTexture();
     if (!tex) {
         return result;
@@ -71,16 +67,12 @@ static CRegion hook_renderPass(Render::CRenderPass* thisptr, const CRegion& dama
         return result;
     }
 
-    uint32_t inputTexture = tex->m_texID;
-    uint32_t outputFbo = glFB->getFBID();
-    uint32_t width = monitor->m_pixelSize.x;
-    uint32_t height = monitor->m_pixelSize.y;
+    g_renderer->render(tex->m_texID, glFB->getFBID(),
+                      monitor->m_pixelSize.x, monitor->m_pixelSize.y);
 
-    g_renderer->render(inputTexture, outputFbo, width, height);
-
-    // Shader processing affects the entire screen, so return full damage
     CRegion fullDamage;
-    fullDamage.add(CBox{0.0, 0.0, static_cast<double>(width), static_cast<double>(height)});
+    fullDamage.add(CBox{0.0, 0.0, static_cast<double>(monitor->m_pixelSize.x),
+                        static_cast<double>(monitor->m_pixelSize.y)});
     return fullDamage;
 }
 

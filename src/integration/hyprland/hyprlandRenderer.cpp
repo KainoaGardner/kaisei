@@ -16,6 +16,8 @@ HyprlandRenderer::HyprlandRenderer(core::Registry& registry)
 }
 
 HyprlandRenderer::~HyprlandRenderer() {
+    spdlog::debug("HyprlandRenderer destructor called");
+    spdlog::debug("HyprlandRenderer destroyed");
 }
 
 void HyprlandRenderer::loadPreset(const std::string& name) {

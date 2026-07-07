@@ -62,15 +62,22 @@ void HyprlandServer::stop() {
         return;
     }
 
+    spdlog::debug("Stopping server, running_ = {}", running_.load());
     running_ = false;
 
+    // Shutdown the socket to unblock accept()
     if (serverSocket_ >= 0) {
+        spdlog::debug("Shutting down socket {}", serverSocket_);
+        shutdown(serverSocket_, SHUT_RDWR);
         close(serverSocket_);
         serverSocket_ = -1;
     }
 
+    // Wait for accept thread with timeout
     if (acceptThread_.joinable()) {
+        spdlog::debug("Joining accept thread...");
         acceptThread_.join();
+        spdlog::debug("Accept thread joined");
     }
 
     unlink(socketPath_.c_str());
@@ -97,6 +104,11 @@ void HyprlandServer::acceptLoop() {
 }
 
 void HyprlandServer::handleClient(int clientFd) {
+    // Don't process commands if we're shutting down
+    if (!running_) {
+        return;
+    }
+
     char buffer[1024];
     memset(buffer, 0, sizeof(buffer));
 
@@ -107,6 +119,11 @@ void HyprlandServer::handleClient(int clientFd) {
 
     std::string command(buffer, bytesRead);
     spdlog::debug("Received command: {}", command);
+
+    // Double-check we're still running before calling callback
+    if (!running_) {
+        return;
+    }
 
     if (commandCallback_) {
         try {

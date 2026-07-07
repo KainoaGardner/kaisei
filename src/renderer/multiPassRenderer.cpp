@@ -13,14 +13,35 @@ namespace kaisei::renderer {
 namespace {
 
 std::string readFile(const std::string& path) {
-    std::ifstream file(path);
-    if (!file.is_open()) {
-        throw std::runtime_error("Failed to open file: " + path);
+    std::vector<std::string> searchPaths = {
+        path,
+    };
+
+    const char* homeDir = std::getenv("HOME");
+    if (homeDir) {
+        searchPaths.push_back(std::string(homeDir) + "/.local/share/kaisei/" + path);
     }
 
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
+    searchPaths.push_back("/usr/share/kaisei/" + path);
+
+    spdlog::debug("Looking for shader file: {}", path);
+    for (const auto& searchPath : searchPaths) {
+        spdlog::debug("  Trying: {}", searchPath);
+        std::ifstream file(searchPath);
+        if (file.is_open()) {
+            spdlog::debug("  Found shader file at: {}", searchPath);
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            return buffer.str();
+        }
+    }
+
+    std::string searchedPaths;
+    for (size_t i = 0; i < searchPaths.size(); ++i) {
+        if (i > 0) searchedPaths += ", ";
+        searchedPaths += searchPaths[i];
+    }
+    throw std::runtime_error("Failed to open file: " + path + " (searched: " + searchedPaths + ")");
 }
 
 } 

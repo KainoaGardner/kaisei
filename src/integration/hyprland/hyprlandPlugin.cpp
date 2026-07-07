@@ -1,4 +1,7 @@
 #include <memory>
+#include <atomic>
+#include <thread>
+#include <chrono>
 #include <GLES3/gl32.h>
 #include <spdlog/spdlog.h>
 
@@ -26,11 +29,23 @@ HyprlandServer* g_server = nullptr;
 HANDLE g_pluginHandle = nullptr;
 
 static std::unique_ptr<core::Registry> g_registry;
+static CFunctionHook* g_renderHook = nullptr;
+static std::atomic<bool> g_shuttingDown{false};
 
 typedef CRegion (*renderPass_t)(Render::CRenderPass*, const CRegion&);
 static renderPass_t g_pOriginalRenderPass = nullptr;
 
+static void damageAllMonitors() {
+    for (auto& m : g_pCompositor->m_monitors) {
+        g_pHyprRenderer->damageMonitor(m);
+    }
+}
+
 static CRegion hook_renderPass(Render::CRenderPass* thisptr, const CRegion& damage) {
+    if (g_shuttingDown.load()) {
+        return g_pOriginalRenderPass(thisptr, damage);
+    }
+
     const auto& renderData = g_pHyprRenderer->m_renderData;
     bool shouldProcess = g_renderer && g_renderer->isEnabled() &&
                         renderData.currentFB && renderData.mainFB &&
@@ -104,6 +119,10 @@ static CommandType parseCommand(const std::string& command, std::string& arg) {
 static std::string handleCommand(const std::string& command) {
     spdlog::info("Received command: {}", command);
 
+    if (g_shuttingDown.load() || !g_renderer) {
+        return "ERROR:Plugin is shutting down";
+    }
+
     std::string arg;
     CommandType cmdType = parseCommand(command, arg);
 
@@ -112,6 +131,7 @@ static std::string handleCommand(const std::string& command) {
             try {
                 g_renderer->loadPreset(arg);
                 spdlog::info("Loaded preset: {}", arg);
+                damageAllMonitors();
                 return utils::bold("Loaded preset '" + arg + "'");
             } catch (const std::exception& e) {
                 spdlog::error("Failed to load preset '{}': {}", arg, e.what());
@@ -121,16 +141,19 @@ static std::string handleCommand(const std::string& command) {
         case CommandType::On:
             g_renderer->setEnabled(true);
             spdlog::info("Effects enabled");
+            damageAllMonitors();
             return utils::bold("Effects enabled");
 
         case CommandType::Off:
             g_renderer->setEnabled(false);
             spdlog::info("Effects disabled");
+            damageAllMonitors();
             return utils::bold("Effects disabled");
 
         case CommandType::Toggle:
             g_renderer->setEnabled(!g_renderer->isEnabled());
             spdlog::info("Toggled effects: {}", g_renderer->isEnabled() ? "ON" : "OFF");
+            damageAllMonitors();
             return utils::bold(g_renderer->isEnabled() ? "Effects enabled" : "Effects disabled");
 
         case CommandType::Status:
@@ -155,6 +178,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     using namespace kaisei::integration::hyprland;
 
     g_pluginHandle = handle;
+    g_shuttingDown.store(false); 
 
     spdlog::set_level(spdlog::level::debug);
     spdlog::info("Kaisei Hyprland plugin initializing...");
@@ -197,12 +221,12 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
             throw std::runtime_error("Failed to find CRenderPass::render()");
         }
 
-        static auto renderHook = HyprlandAPI::createFunctionHook(handle, renderAddr, (void*)&hook_renderPass);
-        if (!renderHook->hook()) {
+        g_renderHook = HyprlandAPI::createFunctionHook(handle, renderAddr, (void*)&hook_renderPass);
+        if (!g_renderHook->hook()) {
             spdlog::error("Failed to hook CRenderPass::render()");
             throw std::runtime_error("Failed to hook CRenderPass::render()");
         }
-        g_pOriginalRenderPass = (renderPass_t)renderHook->m_original;
+        g_pOriginalRenderPass = (renderPass_t)g_renderHook->m_original;
         spdlog::debug("Successfully hooked CRenderPass::render()");
 
         spdlog::info("Kaisei Hyprland plugin initialized successfully");
@@ -226,17 +250,38 @@ APICALL EXPORT void PLUGIN_EXIT() {
 
     spdlog::info("Kaisei Hyprland plugin shutting down...");
 
+    spdlog::debug("Setting shutdown flag...");
+    g_shuttingDown.store(true);
+
+    if (g_renderer) {
+        spdlog::debug("Disabling renderer...");
+        g_renderer->setEnabled(false);
+    }
+
+    if (g_renderHook) {
+        spdlog::debug("Unhooking CRenderPass::render()...");
+        g_renderHook->unhook();
+        g_renderHook = nullptr;
+        spdlog::debug("Unhooked successfully");
+    }
+
+    spdlog::debug("Waiting for in-flight renders...");
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
     if (g_server) {
+        spdlog::debug("Stopping command server...");
         g_server->stop();
         delete g_server;
         g_server = nullptr;
     }
 
     if (g_renderer) {
+        spdlog::debug("Deleting renderer...");
         delete g_renderer;
         g_renderer = nullptr;
     }
 
+    spdlog::debug("Resetting registry...");
     g_registry.reset();
 
     spdlog::info("Kaisei Hyprland plugin shut down");

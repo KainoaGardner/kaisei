@@ -169,6 +169,13 @@ std::unique_ptr<Preset> PresetLoader::loadPreset(const std::filesystem::path& fi
 }
 
 void PresetLoader::savePreset(const Preset& preset, const std::filesystem::path& filePath) const {
+    // Ensure the directory exists before saving
+    auto parentPath = filePath.parent_path();
+    if (!parentPath.empty() && !std::filesystem::exists(parentPath)) {
+        std::filesystem::create_directories(parentPath);
+        spdlog::debug("Created directory: {}", parentPath.string());
+    }
+
     toml::table root;
 
     root.insert("preset", toml::table{

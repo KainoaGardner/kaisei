@@ -34,22 +34,12 @@ void Registry::loadDefaultPaths() {
 
     std::filesystem::path home(homeDir);
 
-    std::filesystem::path currentPath = std::filesystem::current_path();
-    std::filesystem::path repoModules = currentPath / "modules";
-    std::filesystem::path repoExamples = currentPath / "examples" / "presets";
-
-    if (std::filesystem::exists(repoModules)) {
-        addModuleSearchPath(repoModules);
-        spdlog::debug("Added development module path: {}", repoModules.string());
-    }
-    if (std::filesystem::exists(repoExamples)) {
-        addPresetSearchPath(repoExamples);
-        spdlog::debug("Added development preset path: {}", repoExamples.string());
-    }
-
+    // System-wide installation (will be used when packaged)
     addModuleSearchPath("/usr/share/kaisei/modules");
+    addPresetSearchPath("/usr/share/kaisei/presets");
 
-    addModuleSearchPath(home / ".local/share/kaisei/modules");
+    // User config directory (takes precedence over system)
+    addModuleSearchPath(home / ".config/kaisei/modules");
     addPresetSearchPath(home / ".config/kaisei/presets");
 
     setPresetSavePath(home / ".config/kaisei/presets");
@@ -58,8 +48,6 @@ void Registry::loadDefaultPaths() {
 }
 
 void Registry::loadConfig(const std::filesystem::path& configPath) {
-    // TODO: Parse config.toml and set paths
-    // For now, use default paths
     loadDefaultPaths();
     spdlog::debug("Config loading not yet implemented, using defaults");
 }
@@ -79,6 +67,17 @@ void Registry::setPresetSavePath(const std::filesystem::path& path) {
 void Registry::scanAll() {
     moduleLoader_.scanModules();
     presetLoader_.scanPresets();
+
+    auto presetNames = presetLoader_.listPresets();
+    spdlog::debug("Found {} presets: {}", presetNames.size(),
+                 presetNames.empty() ? "none" : [&]() {
+                     std::string names;
+                     for (size_t i = 0; i < presetNames.size(); ++i) {
+                         if (i > 0) names += ", ";
+                         names += presetNames[i];
+                     }
+                     return names;
+                 }());
 }
 
 void Registry::reload() {

@@ -70,6 +70,7 @@ void PresetCommands::setup(CLI::App* preset, core::Registry& registry) {
 
 void PresetCommands::create(core::Registry& registry, const std::string& name, const std::string& version, const std::string& description) {
     auto* preset = registry.presets().createPreset(name, version, description);
+    registry.presets().reload();
 
     std::cout << utils::bold("Created preset: ") << preset->name() << " " << preset->version() << "\n";
     if (!description.empty()) {
@@ -158,6 +159,7 @@ void PresetCommands::deletePreset(core::Registry& registry, const std::string& n
     }
 
     registry.presets().deletePreset(name);
+    registry.presets().reload();
     std::cout << utils::bold("Deleted preset: ") << "'" << name << "'\n";
 }
 

@@ -27,11 +27,13 @@ void ModuleCommands::setup(CLI::App* module, core::Registry& registry) {
     static std::string createName;
     static std::string version = "1.0";
     static std::string description = "";
+    static bool stage = false;
 
     create->add_option("name", createName, "Module name")->required();
     create->add_option("--version,-v", version, "Module version (default: 1.0)");
     create->add_option("--description,-d", description, "Module description");
-    create->callback([&]() { ModuleCommands::create(registry, createName, version, description); });
+    create->add_flag("--stage,-s", stage, "Create a multi-pass stage module instead of single-pass");
+    create->callback([&]() { ModuleCommands::create(registry, createName, version, description, stage); });
 
     // module delete
     auto* del = module->add_subcommand("delete", "Delete a module");
@@ -102,6 +104,16 @@ void ModuleCommands::info(core::Registry& registry, const std::string& name) {
     std::cout << utils::bold("Version: ") << metadata.version << "\n";
     std::cout << utils::bold("Author: ") << metadata.author << "\n";
     std::cout << utils::bold("Description: ") << metadata.description << "\n";
+    std::cout << utils::bold("Type: ") << (metadata.type == core::EffectType::Module ? "module" : "stage") << "\n";
+
+    if (metadata.type == core::EffectType::Stage && !metadata.passes.empty()) {
+        std::cout << utils::bold("Passes: ");
+        for (size_t i = 0; i < metadata.passes.size(); ++i) {
+            if (i > 0) std::cout << ", ";
+            std::cout << metadata.passes[i].name;
+        }
+        std::cout << "\n";
+    }
 
     if (!metadata.tags.empty()) {
         std::cout << utils::bold("Tags: ");
@@ -142,15 +154,22 @@ void ModuleCommands::info(core::Registry& registry, const std::string& name) {
 }
 
 void ModuleCommands::create(core::Registry& registry, const std::string& name,
-                            const std::string& version, const std::string& description) {
+                            const std::string& version, const std::string& description, bool stage) {
     try {
-        registry.modules().createModule(name, version, description);
-        std::cout << utils::bold("Created module: ") << name << "\n";
+        registry.modules().createModule(name, version, description, stage);
+        registry.modules().reload();
+
+        std::cout << utils::bold("Created module: ") << name << (stage ? " (multi-pass)" : "") << "\n";
         std::cout << "Files created in ~/.config/kaisei/modules/:\n";
-        std::cout << "  - " << name << ".toml\n";
-        std::cout << "  - " << name << ".frag\n";
-        std::cout << "\nEdit these files to customize your module.\n";
-        std::cout << "Then reload modules with: " << utils::bold("kaisei reload") << "\n";
+        if (stage) {
+            std::cout << "  - " << name << "/" << name << ".toml\n";
+            std::cout << "  - " << name << "/" << name << "_pass1.frag\n";
+            std::cout << "  - " << name << "/" << name << "_pass2.frag\n";
+        } else {
+            std::cout << "  - " << name << ".toml\n";
+            std::cout << "  - " << name << ".frag\n";
+        }
+        std::cout << "\nEdit these files to customize your module, then run " << utils::bold("kaisei reload") << " to apply changes.\n";
     } catch (const std::exception& e) {
         spdlog::error("Failed to create module: {}", e.what());
     }
@@ -159,6 +178,7 @@ void ModuleCommands::create(core::Registry& registry, const std::string& name,
 void ModuleCommands::deleteModule(core::Registry& registry, const std::string& name) {
     try {
         registry.modules().deleteModule(name);
+        registry.modules().reload();
         std::cout << utils::bold("Deleted module: ") << name << "\n";
     } catch (const std::exception& e) {
         spdlog::error("Failed to delete module: {}", e.what());

@@ -132,8 +132,22 @@ void ModuleLoader::createModule(const std::string& name,
         std::filesystem::create_directories(standardSavePath_);
     }
 
-    auto tomlPath = standardSavePath_ / (name + ".toml");
-    auto fragPath = standardSavePath_ / (name + ".frag");
+    std::filesystem::path moduleBasePath;
+    std::filesystem::path tomlPath;
+    std::filesystem::path fragPath;
+
+    if (stage) {
+        moduleBasePath = standardSavePath_ / name;
+        if (!std::filesystem::exists(moduleBasePath)) {
+            std::filesystem::create_directories(moduleBasePath);
+        }
+        tomlPath = moduleBasePath / (name + ".toml");
+        fragPath = moduleBasePath / (name + ".frag");
+    } else {
+        moduleBasePath = standardSavePath_;
+        tomlPath = standardSavePath_ / (name + ".toml");
+        fragPath = standardSavePath_ / (name + ".frag");
+    }
 
     std::ofstream tomlFile(tomlPath);
     if (!tomlFile.is_open()) {
@@ -177,8 +191,8 @@ void ModuleLoader::createModule(const std::string& name,
     tomlFile.close();
 
     if (stage) {
-        auto fragPath1 = standardSavePath_ / (name + "_pass1.frag");
-        auto fragPath2 = standardSavePath_ / (name + "_pass2.frag");
+        auto fragPath1 = moduleBasePath / (name + "_pass1.frag");
+        auto fragPath2 = moduleBasePath / (name + "_pass2.frag");
 
         std::ofstream fragFile1(fragPath1);
         if (!fragFile1.is_open()) {
@@ -276,19 +290,26 @@ void ModuleLoader::createModule(const std::string& name,
 }
 
 void ModuleLoader::deleteModule(const std::string& name) {
+    std::filesystem::path moduleDir;
     std::filesystem::path tomlPath;
-    std::filesystem::path fragPath;
+    bool isStageModule = false;
     bool foundInMemory = false;
 
     auto it = modules_.find(name);
     if (it != modules_.end()) {
-        auto modulePath = it->second->path();
-        auto baseDir = modulePath.parent_path();
-        auto baseName = modulePath.stem().string();
-        tomlPath = baseDir / (baseName + ".toml");
-        fragPath = baseDir / (baseName + ".frag");
+        auto modulePath = it->second->path();  // Parent directory of the .toml file
+
+        // Check if this is a stage module (in its own subdirectory)
+        if (modulePath.filename() == name && it->second->isMultiPass()) {
+            moduleDir = modulePath;
+            isStageModule = true;
+            spdlog::debug("Found stage module '{}' in directory: {}", name, moduleDir.string());
+        } else {
+            // Regular module - construct the .toml path
+            tomlPath = modulePath / (name + ".toml");
+            spdlog::debug("Found module '{}' in memory at {}", name, tomlPath.string());
+        }
         foundInMemory = true;
-        spdlog::debug("Found module '{}' in memory at {}", name, tomlPath.string());
     } else {
         spdlog::debug("Module '{}' not in memory, searching {} paths on disk", name, searchPaths_.size());
         bool found = false;
@@ -299,15 +320,21 @@ void ModuleLoader::deleteModule(const std::string& name) {
                 continue;
             }
 
-            auto potentialToml = searchPath / (name + ".toml");
-            auto potentialFrag = searchPath / (name + ".frag");
-            spdlog::debug("    Looking for: {}", potentialToml.string());
+            auto potentialDir = searchPath / name;
+            auto potentialDirToml = potentialDir / (name + ".toml");
+            if (std::filesystem::exists(potentialDirToml)) {
+                moduleDir = potentialDir;
+                isStageModule = true;
+                found = true;
+                spdlog::debug("    Found stage module directory: {}", moduleDir.string());
+                break;
+            }
 
+            auto potentialToml = searchPath / (name + ".toml");
             if (std::filesystem::exists(potentialToml)) {
                 tomlPath = potentialToml;
-                fragPath = potentialFrag;
                 found = true;
-                spdlog::debug("    Found!");
+                spdlog::debug("    Found module file: {}", tomlPath.string());
                 break;
             }
         }
@@ -319,16 +346,23 @@ void ModuleLoader::deleteModule(const std::string& name) {
 
     bool deletedAny = false;
 
-    if (std::filesystem::exists(tomlPath)) {
+    if (isStageModule && std::filesystem::exists(moduleDir)) {
+        std::filesystem::remove_all(moduleDir);
+        spdlog::info("Deleted module directory: {}", moduleDir.string());
+        deletedAny = true;
+    } else if (std::filesystem::exists(tomlPath)) {
+        auto baseDir = tomlPath.parent_path();
+        auto baseName = tomlPath.stem().string();
+        auto fragPath = baseDir / (baseName + ".frag");
+
         std::filesystem::remove(tomlPath);
         spdlog::info("Deleted module file: {}", tomlPath.string());
         deletedAny = true;
-    }
 
-    if (std::filesystem::exists(fragPath)) {
-        std::filesystem::remove(fragPath);
-        spdlog::info("Deleted shader file: {}", fragPath.string());
-        deletedAny = true;
+        if (std::filesystem::exists(fragPath)) {
+            std::filesystem::remove(fragPath);
+            spdlog::info("Deleted shader file: {}", fragPath.string());
+        }
     }
 
     if (foundInMemory) {

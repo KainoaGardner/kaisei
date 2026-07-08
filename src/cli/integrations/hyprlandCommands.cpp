@@ -13,15 +13,9 @@ namespace {
     constexpr const char* SOCKET_PATH = "/tmp/kaisei-hyprland.sock";
 }
 
-void HyprlandCommands::setup(CLI::App* app, core::Registry& registry) {
-    // hyprland load <preset>
-    auto* load = app->add_subcommand("load", "Load a preset and enable effects");
-    static std::string loadPresetName;
-    load->add_option("preset", loadPresetName, "Preset name")->required();
-    load->callback([&]() { HyprlandCommands::load(registry, loadPresetName); });
-
+void HyprlandCommands::setup(CLI::App* app) {
     // hyprland on
-    auto* on = app->add_subcommand("on", "Enable effects");
+    auto* on = app->add_subcommand("on", "Enable effects (uses current preset)");
     on->callback([]() { HyprlandCommands::on(); });
 
     // hyprland off
@@ -35,20 +29,6 @@ void HyprlandCommands::setup(CLI::App* app, core::Registry& registry) {
     // hyprland status
     auto* status = app->add_subcommand("status", "Check Hyprland integration status");
     status->callback([]() { HyprlandCommands::status(); });
-}
-
-void HyprlandCommands::load(core::Registry& registry, const std::string& presetName) {
-    if (!registry.presets().hasPreset(presetName)) {
-        spdlog::error("Preset '{}' not found", presetName);
-        return;
-    }
-
-    try {
-        std::string response = sendCommand("LOAD:" + presetName);
-        std::cout << response << "\n";
-    } catch (const std::exception& e) {
-        spdlog::error("Failed to load preset: {}", e.what());
-    }
 }
 
 void HyprlandCommands::on() {

@@ -66,6 +66,29 @@ void PresetCommands::setup(CLI::App* preset, core::Registry& registry) {
 
     show->add_option("name", showName, "Preset name")->required();
     show->callback([&]() { PresetCommands::show(registry, showName); });
+
+    // preset current
+    auto* current = preset->add_subcommand("current", "Show current preset");
+    current->callback([&]() { PresetCommands::current(registry); });
+
+    // preset select <name>
+    auto* select = preset->add_subcommand("select", "Select a preset as current");
+    static std::string selectName;
+
+    select->add_option("name", selectName, "Preset name")->required();
+    select->callback([&]() { PresetCommands::select(registry, selectName); });
+
+    // preset unselect
+    auto* unselect = preset->add_subcommand("unselect", "Clear current preset selection");
+    unselect->callback([&]() { PresetCommands::unselect(registry); });
+
+    // preset next
+    auto* next = preset->add_subcommand("next", "Cycle to next preset");
+    next->callback([&]() { PresetCommands::next(registry); });
+
+    // preset prev
+    auto* prev = preset->add_subcommand("prev", "Cycle to previous preset");
+    prev->callback([&]() { PresetCommands::prev(registry); });
 }
 
 void PresetCommands::create(core::Registry& registry, const std::string& name, const std::string& version, const std::string& description) {
@@ -171,11 +194,14 @@ void PresetCommands::list(core::Registry& registry) {
         return;
     }
 
+    std::string currentPreset = registry.getCurrentPreset();
+
     size_t i = 0;
     std::cout << utils::bold("Available presets:\n");
     for (const auto& name : presets) {
         auto* preset = registry.presets().getPreset(name);
-        std::cout << utils::bold(std::to_string(i++) + ". ") << name << " " << preset->version() 
+        std::string marker = (name == currentPreset) ? " *" : "  ";
+        std::cout << marker << utils::bold(std::to_string(i++) + ". ") << name << " " << preset->version()
                   << utils::bold(" - ") << utils::bold(std::to_string(preset->modules().size())) << utils::bold(" modules\n");
     }
 }
@@ -209,6 +235,64 @@ void PresetCommands::show(core::Registry& registry, const std::string& name) {
             std::cout << ")";
         }
         std::cout << "\n";
+    }
+}
+
+void PresetCommands::current(core::Registry& registry) {
+    std::string currentPreset = registry.getCurrentPreset();
+
+    if (currentPreset.empty()) {
+        std::cout << "No preset currently selected\n";
+        return;
+    }
+
+    if (!registry.presets().hasPreset(currentPreset)) {
+        std::cout << utils::bold("Current preset: ") << currentPreset << " " << utils::bold("(not found)\n");
+        return;
+    }
+
+    auto* preset = registry.presets().getPreset(currentPreset);
+    std::cout << utils::bold("Current preset: ") << currentPreset << " " << preset->version() << "\n";
+}
+
+void PresetCommands::select(core::Registry& registry, const std::string& name) {
+    if (!registry.presets().hasPreset(name)) {
+        spdlog::error("Preset '{}' not found", name);
+        return;
+    }
+
+    registry.setCurrentPreset(name);
+    auto* preset = registry.presets().getPreset(name);
+    std::cout << utils::bold("Selected preset: ") << name << " " << preset->version() << "\n";
+}
+
+void PresetCommands::unselect(core::Registry& registry) {
+    std::string currentPreset = registry.getCurrentPreset();
+
+    if (currentPreset.empty()) {
+        std::cout << "No preset currently selected\n";
+        return;
+    }
+
+    registry.clearCurrentPreset();
+    std::cout << utils::bold("Cleared preset selection") << " (was: " << currentPreset << ")\n";
+}
+
+void PresetCommands::next(core::Registry& registry) {
+    try {
+        std::string preset = registry.nextPreset();
+        std::cout << utils::bold("Next preset: ") << preset << "\n";
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to cycle to next preset: {}", e.what());
+    }
+}
+
+void PresetCommands::prev(core::Registry& registry) {
+    try {
+        std::string preset = registry.prevPreset();
+        std::cout << utils::bold("Previous preset: ") << preset << "\n";
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to cycle to previous preset: {}", e.what());
     }
 }
 

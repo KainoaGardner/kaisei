@@ -79,7 +79,7 @@ void CLIApp::setupHyprlandCommands() {
     auto* hyprland = app_->add_subcommand("hyprland", "Control Hyprland integration");
     hyprland->require_subcommand(1);
 
-    HyprlandCommands::setup(hyprland, registry_);
+    HyprlandCommands::setup(hyprland);
 }
 
 int CLIApp::run(int argc, char** argv) {

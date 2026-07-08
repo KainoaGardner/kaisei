@@ -111,7 +111,6 @@ static CRegion hook_renderPass(Render::CRenderPass* thisptr, const CRegion& dama
 }
 
 enum class CommandType {
-    Load,
     On,
     Off,
     Toggle,
@@ -120,10 +119,7 @@ enum class CommandType {
 };
 
 static CommandType parseCommand(const std::string& command, std::string& arg) {
-    if (command.starts_with("LOAD:")) {
-        arg = command.substr(5);
-        return CommandType::Load;
-    } else if (command == "ON") {
+    if (command == "ON") {
         return CommandType::On;
     } else if (command == "OFF") {
         return CommandType::Off;
@@ -146,22 +142,17 @@ static std::string handleCommand(const std::string& command) {
     CommandType cmdType = parseCommand(command, arg);
 
     switch (cmdType) {
-        case CommandType::Load:
-            try {
-                g_renderer->loadPreset(arg);
-                spdlog::info("Loaded preset: {}", arg);
-                damageAllMonitors();
-                return utils::bold("Loaded preset '" + arg + "'");
-            } catch (const std::exception& e) {
-                spdlog::error("Failed to load preset '{}': {}", arg, e.what());
-                throw;
-            }
-
         case CommandType::On:
-            g_renderer->setEnabled(true);
-            spdlog::info("Effects enabled");
-            damageAllMonitors();
-            return utils::bold("Effects enabled");
+            try {
+                g_renderer->loadCurrentPreset();
+                g_renderer->setEnabled(true);
+                spdlog::info("Effects enabled");
+                damageAllMonitors();
+                return utils::bold("Effects enabled with preset '" + g_renderer->getCurrentPreset() + "'");
+            } catch (const std::exception& e) {
+                spdlog::error("Failed to enable effects: {}", e.what());
+                return "ERROR:" + std::string(e.what());
+            }
 
         case CommandType::Off:
             g_renderer->setEnabled(false);
@@ -170,10 +161,19 @@ static std::string handleCommand(const std::string& command) {
             return utils::bold("Effects disabled");
 
         case CommandType::Toggle:
-            g_renderer->setEnabled(!g_renderer->isEnabled());
-            spdlog::info("Toggled effects: {}", g_renderer->isEnabled() ? "ON" : "OFF");
-            damageAllMonitors();
-            return utils::bold(g_renderer->isEnabled() ? "Effects enabled" : "Effects disabled");
+            try {
+                bool newState = !g_renderer->isEnabled();
+                if (newState) {
+                    g_renderer->loadCurrentPreset();
+                }
+                g_renderer->setEnabled(newState);
+                spdlog::info("Toggled effects: {}", newState ? "ON" : "OFF");
+                damageAllMonitors();
+                return utils::bold(newState ? ("Effects enabled with preset '" + g_renderer->getCurrentPreset() + "'") : "Effects disabled");
+            } catch (const std::exception& e) {
+                spdlog::error("Failed to toggle effects: {}", e.what());
+                return "ERROR:" + std::string(e.what());
+            }
 
         case CommandType::Status:
             return g_renderer->getStatus();

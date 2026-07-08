@@ -23,6 +23,9 @@ public:
 
     void render(uint32_t inputTexture, uint32_t outputFbo, uint32_t width, uint32_t height);
 
+    void checkPresetFileChange();
+    void loadCurrentPreset();
+
 private:
     core::Registry& registry_;
     std::unique_ptr<backend::Backend> backend_;
@@ -30,6 +33,10 @@ private:
 
     std::string currentPreset_;
     bool enabled_;
+
+    int inotifyFd_;
+    int watchFd_;
+    std::filesystem::path currentPresetFile_;
 };
 
 } // namespace kaisei::integration::hyprland

@@ -17,6 +17,11 @@ private:
     static void move(core::Registry& registry, const std::string& name, size_t fromIndex, size_t toIndex);
     static void list(core::Registry& registry);
     static void show(core::Registry& registry, const std::string& name);
+    static void current(core::Registry& registry);
+    static void select(core::Registry& registry, const std::string& name);
+    static void unselect(core::Registry& registry);
+    static void next(core::Registry& registry);
+    static void prev(core::Registry& registry);
 };
 
 } // namespace kaisei::cli

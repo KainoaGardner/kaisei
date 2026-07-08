@@ -82,8 +82,27 @@ static CRegion hook_renderPass(Render::CRenderPass* thisptr, const CRegion& dama
         return result;
     }
 
+    GLint oldProgram, oldFBO, oldVAO;
+    GLint oldViewport[4];
+    GLboolean oldBlend, oldDepthTest, oldScissorTest;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &oldProgram);
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &oldFBO);
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &oldVAO);
+    glGetIntegerv(GL_VIEWPORT, oldViewport);
+    oldBlend = glIsEnabled(GL_BLEND);
+    oldDepthTest = glIsEnabled(GL_DEPTH_TEST);
+    oldScissorTest = glIsEnabled(GL_SCISSOR_TEST);
+
     g_renderer->render(tex->m_texID, glFB->getFBID(),
                       monitor->m_pixelSize.x, monitor->m_pixelSize.y);
+
+    glUseProgram(oldProgram);
+    glBindFramebuffer(GL_FRAMEBUFFER, oldFBO);
+    glBindVertexArray(oldVAO);
+    glViewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
+    if (oldBlend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+    if (oldDepthTest) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+    if (oldScissorTest) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
 
     CRegion fullDamage;
     fullDamage.add(CBox{0.0, 0.0, static_cast<double>(monitor->m_pixelSize.x),

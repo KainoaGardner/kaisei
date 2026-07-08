@@ -21,6 +21,9 @@ HyprlandRenderer::~HyprlandRenderer() {
 }
 
 void HyprlandRenderer::loadPreset(const std::string& name) {
+    // Reload all modules and presets from disk to pick up any changes
+    registry_.reload();
+
     if (!registry_.presets().hasPreset(name)) {
         throw std::runtime_error("Preset '" + name + "' not found");
     }

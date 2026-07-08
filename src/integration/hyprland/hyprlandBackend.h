@@ -9,8 +9,9 @@ public:
     HyprlandOpenGLBackend() = default;
     ~HyprlandOpenGLBackend() override = default;
 
-    // Override to use lazy VAO creation in Hyprland's GL context
     void drawFullscreenQuad() override;
+
+    bool initialize() override;
 };
 
 } // namespace kaisei::integration::hyprland

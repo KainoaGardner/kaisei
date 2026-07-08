@@ -30,6 +30,7 @@ public:
     const Preset* getPreset(const std::string& name) const;
     Preset* getPresetMutable(const std::string& name);
     bool hasPreset(const std::string& name) const;
+    void reloadPreset(const std::string& name);
 
     std::vector<std::string> listPresets() const;
 

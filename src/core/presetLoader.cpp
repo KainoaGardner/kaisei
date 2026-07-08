@@ -316,6 +316,17 @@ bool PresetLoader::hasPreset(const std::string& name) const {
     return presets_.count(name) > 0;
 }
 
+void PresetLoader::reloadPreset(const std::string& name) {
+    auto filePath = getPresetFilePath(name);
+    if (filePath.empty()) {
+        throw std::runtime_error("Preset file not found: " + name);
+    }
+
+    auto preset = loadPreset(filePath);
+    presets_[name] = std::move(preset);
+    spdlog::debug("Reloaded preset '{}' from {}", name, filePath.string());
+}
+
 std::vector<std::string> PresetLoader::listPresets() const {
     std::vector<std::string> names;
     names.reserve(presets_.size());

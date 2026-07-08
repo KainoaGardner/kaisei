@@ -191,6 +191,7 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
 
     for (size_t i = 0; i < passes_.size(); ++i) {
         const auto& pass = passes_[i];
+
         if (i == passes_.size() - 1 && outputFbo != 0 && !needsIntermediateCopy) {
             currentFBO = outputFbo;
         } else {
@@ -198,7 +199,6 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
         }
 
         backend_.bindFramebuffer(currentFBO);
-
         backend_.setViewport(0, 0, width, height);
         backend_.clear(0.0f, 0.0f, 0.0f, 1.0f);
 

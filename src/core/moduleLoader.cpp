@@ -132,22 +132,13 @@ void ModuleLoader::createModule(const std::string& name,
         std::filesystem::create_directories(standardSavePath_);
     }
 
-    std::filesystem::path moduleBasePath;
-    std::filesystem::path tomlPath;
-    std::filesystem::path fragPath;
-
-    if (stage) {
-        moduleBasePath = standardSavePath_ / name;
-        if (!std::filesystem::exists(moduleBasePath)) {
-            std::filesystem::create_directories(moduleBasePath);
-        }
-        tomlPath = moduleBasePath / (name + ".toml");
-        fragPath = moduleBasePath / (name + ".frag");
-    } else {
-        moduleBasePath = standardSavePath_;
-        tomlPath = standardSavePath_ / (name + ".toml");
-        fragPath = standardSavePath_ / (name + ".frag");
+    std::filesystem::path moduleBasePath = standardSavePath_ / name;
+    if (!std::filesystem::exists(moduleBasePath)) {
+        std::filesystem::create_directories(moduleBasePath);
     }
+
+    std::filesystem::path tomlPath = moduleBasePath / (name + ".toml");
+    std::filesystem::path fragPath = moduleBasePath / (name + ".frag");
 
     std::ofstream tomlFile(tomlPath);
     if (!tomlFile.is_open()) {
@@ -297,15 +288,13 @@ void ModuleLoader::deleteModule(const std::string& name) {
 
     auto it = modules_.find(name);
     if (it != modules_.end()) {
-        auto modulePath = it->second->path();  // Parent directory of the .toml file
+        auto modulePath = it->second->path(); 
 
-        // Check if this is a stage module (in its own subdirectory)
-        if (modulePath.filename() == name && it->second->isMultiPass()) {
+        if (modulePath.filename() == name) {
             moduleDir = modulePath;
             isStageModule = true;
-            spdlog::debug("Found stage module '{}' in directory: {}", name, moduleDir.string());
+            spdlog::debug("Found module '{}' in directory: {}", name, moduleDir.string());
         } else {
-            // Regular module - construct the .toml path
             tomlPath = modulePath / (name + ".toml");
             spdlog::debug("Found module '{}' in memory at {}", name, tomlPath.string());
         }
@@ -326,7 +315,7 @@ void ModuleLoader::deleteModule(const std::string& name) {
                 moduleDir = potentialDir;
                 isStageModule = true;
                 found = true;
-                spdlog::debug("    Found stage module directory: {}", moduleDir.string());
+                spdlog::debug("    Found module directory: {}", moduleDir.string());
                 break;
             }
 

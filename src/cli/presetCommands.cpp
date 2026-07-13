@@ -101,7 +101,7 @@ void PresetCommands::setup(CLI::App* preset, core::Registry& registry) {
     // preset import <path>
     auto* imp = preset->add_subcommand("import", "Import a preset bundle or file");
     static std::string importPath;
-    imp->add_option("path", importPath, "Path to the bundle directory or .preset file")->required();
+    imp->add_option("path", importPath, "Path to the bundle directory or preset .toml file")->required();
     imp->callback([&]() { PresetCommands::importPreset(registry, importPath); });
 }
 

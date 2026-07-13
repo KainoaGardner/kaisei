@@ -75,4 +75,4 @@ endif()
 
 # Install examples
 install(DIRECTORY examples/presets/ DESTINATION share/kaisei/examples/presets
-        FILES_MATCHING PATTERN "*.preset")
+        FILES_MATCHING PATTERN "*.preset" PATTERN "*.toml")

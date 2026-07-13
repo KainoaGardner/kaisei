@@ -94,7 +94,7 @@ void PresetLoader::loadPresetsFromPath(const std::filesystem::path& path) {
         if (!entry.is_regular_file()) continue;
 
         const auto& filePath = entry.path();
-        if (filePath.extension() != ".preset") continue;
+        if (filePath.extension() != ".toml" && filePath.extension() != ".preset") continue;
 
         try {
             auto preset = loadPreset(filePath);
@@ -169,7 +169,6 @@ std::unique_ptr<Preset> PresetLoader::loadPreset(const std::filesystem::path& fi
 }
 
 void PresetLoader::savePreset(const Preset& preset, const std::filesystem::path& filePath) const {
-    // Ensure the directory exists before saving
     auto parentPath = filePath.parent_path();
     if (!parentPath.empty() && !std::filesystem::exists(parentPath)) {
         std::filesystem::create_directories(parentPath);
@@ -216,7 +215,7 @@ std::filesystem::path PresetLoader::getPresetFilePath(const std::string& name) c
     if (standardSavePath_.empty()) {
         throw std::runtime_error("Standard save path not set");
     }
-    return standardSavePath_ / (name + ".preset");
+    return standardSavePath_ / (name + ".toml");
 }
 
 Preset* PresetLoader::createPreset(const std::string& name,
@@ -281,7 +280,7 @@ void PresetLoader::exportPreset(const std::string& name, const std::filesystem::
 
     try {
         std::filesystem::create_directories(filePath);
-        auto presetDestFile = filePath / (preset.name() + ".preset");
+        auto presetDestFile = filePath / (preset.name() + ".toml");
         savePreset(preset, presetDestFile);
 
         auto modulesDestDir = filePath / "modules";
@@ -335,23 +334,17 @@ void PresetLoader::importPreset(const std::filesystem::path& filePath, ModuleLoa
 
     if (std::filesystem::is_directory(filePath)) {
         isDirectoryBundle = true;
-        // Search first for any file ending in .preset
         for (const auto& entry : std::filesystem::directory_iterator(filePath)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".preset") {
+            if (entry.is_regular_file() && entry.path().extension() == ".toml") {
                 presetFile = entry.path();
                 break;
             }
         }
-        // Fallback to searching for any file ending in .toml or named preset.toml
         if (presetFile.empty()) {
-            if (std::filesystem::exists(filePath / "preset.toml")) {
-                presetFile = filePath / "preset.toml";
-            } else {
-                for (const auto& entry : std::filesystem::directory_iterator(filePath)) {
-                    if (entry.is_regular_file() && entry.path().extension() == ".toml") {
-                        presetFile = entry.path();
-                        break;
-                    }
+            for (const auto& entry : std::filesystem::directory_iterator(filePath)) {
+                if (entry.is_regular_file() && entry.path().extension() == ".preset") {
+                    presetFile = entry.path();
+                    break;
                 }
             }
         }

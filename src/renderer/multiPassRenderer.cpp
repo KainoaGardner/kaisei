@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+#include "utils/shaderErrorFormatter.h"
 
 #include <glad/glad.h>
 #include <spdlog/spdlog.h>
@@ -90,14 +91,34 @@ void MultiPassRenderer::compileIfNeeded() {
     spdlog::info("Compiling shaders on render thread...");
 
     if (!vertexShader_) {
-        vertexShader_ = backend_.compileShader(vertexShaderSource_, backend::Backend::VERTEX_SHADER);
+        try {
+            vertexShader_ = backend_.compileShader(vertexShaderSource_, backend::Backend::VERTEX_SHADER);
+        } catch (const std::runtime_error& e) {
+            std::string errStr = e.what();
+            if (errStr.find("Shader compilation failed:") == 0) {
+                std::string logMsg = errStr.substr(26);
+                std::string formatted = utils::formatShaderError(logMsg, vertexShaderSource_, "vertex shader", "shaders/vertex.vert");
+                throw std::runtime_error(formatted);
+            }
+            throw;
+        }
     }
 
     if (!passthroughProgram_) {
         std::string passthroughSource = readFile("shaders/passthrough.frag");
-        uint32_t passthroughFrag = backend_.compileShader(passthroughSource, backend::Backend::FRAGMENT_SHADER);
-        passthroughProgram_ = backend_.linkProgram(vertexShader_, passthroughFrag);
-        glDeleteShader(passthroughFrag);
+        try {
+            uint32_t passthroughFrag = backend_.compileShader(passthroughSource, backend::Backend::FRAGMENT_SHADER);
+            passthroughProgram_ = backend_.linkProgram(vertexShader_, passthroughFrag);
+            glDeleteShader(passthroughFrag);
+        } catch (const std::runtime_error& e) {
+            std::string errStr = e.what();
+            if (errStr.find("Shader compilation failed:") == 0) {
+                std::string logMsg = errStr.substr(26);
+                std::string formatted = utils::formatShaderError(logMsg, passthroughSource, "passthrough shader", "shaders/passthrough.frag");
+                throw std::runtime_error(formatted);
+            }
+            throw;
+        }
     }
 
     if (currentPreset_) {
@@ -119,8 +140,34 @@ void MultiPassRenderer::compilePass(const std::string& moduleName) {
 
     if (module->isMultiPass()) {
         for (const auto& pass : module->passes()) {
+            try {
+                uint32_t fragShader = backend_.compileShader(
+                    pass.shaderSource,
+                    backend::Backend::FRAGMENT_SHADER
+                );
+
+                uint32_t program = backend_.linkProgram(vertexShader_, fragShader);
+
+                glDeleteShader(fragShader);
+
+                passes_.push_back({program, moduleName});
+
+                spdlog::debug("Compiled pass '{}' for multi-pass module '{}'", pass.name, moduleName);
+            } catch (const std::runtime_error& e) {
+                std::string errStr = e.what();
+                if (errStr.find("Shader compilation failed:") == 0) {
+                    std::string logMsg = errStr.substr(26);
+                    std::filesystem::path fullPath = module->path().parent_path() / pass.file;
+                    std::string formatted = utils::formatShaderError(logMsg, pass.shaderSource, moduleName, fullPath.string());
+                    throw std::runtime_error(formatted);
+                }
+                throw;
+            }
+        }
+    } else {
+        try {
             uint32_t fragShader = backend_.compileShader(
-                pass.shaderSource,
+                module->shaderSource(),
                 backend::Backend::FRAGMENT_SHADER
             );
 
@@ -130,21 +177,17 @@ void MultiPassRenderer::compilePass(const std::string& moduleName) {
 
             passes_.push_back({program, moduleName});
 
-            spdlog::debug("Compiled pass '{}' for multi-pass module '{}'", pass.name, moduleName);
+            spdlog::debug("Compiled pass for module '{}'", moduleName);
+        } catch (const std::runtime_error& e) {
+            std::string errStr = e.what();
+            if (errStr.find("Shader compilation failed:") == 0) {
+                std::string logMsg = errStr.substr(26);
+                std::filesystem::path fullPath = module->path().parent_path() / module->metadata().shaderFile;
+                std::string formatted = utils::formatShaderError(logMsg, module->shaderSource(), moduleName, fullPath.string());
+                throw std::runtime_error(formatted);
+            }
+            throw;
         }
-    } else {
-        uint32_t fragShader = backend_.compileShader(
-            module->shaderSource(),
-            backend::Backend::FRAGMENT_SHADER
-        );
-
-        uint32_t program = backend_.linkProgram(vertexShader_, fragShader);
-
-        glDeleteShader(fragShader);
-
-        passes_.push_back({program, moduleName});
-
-        spdlog::debug("Compiled pass for module '{}'", moduleName);
     }
 }
 
@@ -275,14 +318,12 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
     lastFrameTime_ = now;
 
     if (outputFbo == 0) {
-        // We rendered to internal framebuffers, return the last one
         if (passes_.size() == 1) {
             return backend_.getFramebufferTexture(framebuffers_[0]);
         } else {
             return backend_.getFramebufferTexture(framebuffers_[(passes_.size() - 1) % 2]);
         }
     } else {
-        // We rendered to outputFbo, return its texture (not implemented yet)
         return 0;
     }
 }

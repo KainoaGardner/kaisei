@@ -15,6 +15,7 @@ private:
     static void create(core::Registry& registry, const std::string& name,
                       const std::string& version, const std::string& description, bool stage);
     static void deleteModule(core::Registry& registry, const std::string& name);
+    static void compileShader(const std::string& shaderPath);
 };
 
 } // namespace kaisei::cli

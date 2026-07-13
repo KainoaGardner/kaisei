@@ -5,6 +5,7 @@ add_library(kaisei-core
     core/moduleLoader.cpp
     core/presetLoader.cpp
     core/registry.cpp
+    utils/shaderErrorFormatter.cpp
 )
 
 target_include_directories(kaisei-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

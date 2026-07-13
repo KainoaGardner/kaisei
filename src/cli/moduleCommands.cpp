@@ -1,9 +1,17 @@
 #include "cli/moduleCommands.h"
 #include "utils/format.h"
+#include "backend/backend.h"
+#include "backend/openGLBackend.h"
 
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 #include <iostream>
 #include <string>
+#include <fstream>
+#include <sstream>
+
+#include "utils/shaderErrorFormatter.h"
 
 namespace kaisei::cli {
 
@@ -41,6 +49,73 @@ void ModuleCommands::setup(CLI::App* module, core::Registry& registry) {
 
     del->add_option("name", deleteName, "Module name")->required();
     del->callback([&]() { ModuleCommands::deleteModule(registry, deleteName); });
+
+    // module compile
+    auto* compile = module->add_subcommand("compile", "Test compile a shader file headlessly");
+    static std::string shaderPath;
+    compile->add_option("file", shaderPath, "Path to the shader file (.frag)")->required();
+    compile->callback([&]() { ModuleCommands::compileShader(shaderPath); });
+}
+
+void ModuleCommands::compileShader(const std::string& shaderPath) {
+    std::cout << "Testing compilation of shader: " << shaderPath << "...\n";
+
+    std::ifstream file(shaderPath);
+    if (!file.is_open()) {
+        spdlog::error("Failed to open shader file: {}", shaderPath);
+        return;
+    }
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string source = buffer.str();
+
+    if (!glfwInit()) {
+        spdlog::error("Failed to initialize GLFW");
+        return;
+    }
+
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    GLFWwindow* window = glfwCreateWindow(1, 1, "Headless", nullptr, nullptr);
+    if (!window) {
+        spdlog::error("Failed to create headless window");
+        glfwTerminate();
+        return;
+    }
+
+    glfwMakeContextCurrent(window);
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        spdlog::error("Failed to initialize GLAD");
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return;
+    }
+
+    try {
+        std::unique_ptr<backend::Backend> backend = std::make_unique<backend::OpenGLBackend>();
+        if (!backend->initialize()) {
+            spdlog::error("Failed to initialize backend");
+            glfwDestroyWindow(window);
+            glfwTerminate();
+            return;
+        }
+
+        uint32_t shader = backend->compileShader(source, backend::Backend::FRAGMENT_SHADER);
+        
+        std::cout << "\033[1;32mShader compiled successfully!\033[0m\n";
+    } catch (const std::runtime_error& e) {
+        std::string errStr = e.what();
+        if (errStr.find("Shader compilation failed:") == 0) {
+            std::string logMsg = errStr.substr(26);
+            std::string formatted = utils::formatShaderError(logMsg, source, "module-compiler", shaderPath);
+            std::cout << formatted << "\n";
+        } else {
+            spdlog::error("Compilation failed: {}", e.what());
+        }
+    }
+
+    glfwDestroyWindow(window);
+    glfwTerminate();
 }
 
 void ModuleCommands::list(core::Registry& registry, const std::string& tag) {

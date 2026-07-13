@@ -18,14 +18,19 @@ PreviewRenderer::~PreviewRenderer() {
 }
 
 void PreviewRenderer::run(const std::string& imagePath, const std::string& presetName) {
-    if (!registry_.presets().hasPreset(presetName)) {
-        spdlog::error("Preset '{}' not found", presetName);
-        return;
+    std::string windowTitle = "Kaisei Preview - (No Preset)";
+    const core::Preset* preset = nullptr;
+
+    if (!presetName.empty()) {
+        if (!registry_.presets().hasPreset(presetName)) {
+            spdlog::error("Preset '{}' not found", presetName);
+            return;
+        }
+        preset = registry_.presets().getPreset(presetName);
+        windowTitle = "Kaisei Preview - " + presetName;
     }
 
-    const auto* preset = registry_.presets().getPreset(presetName);
-
-    window_ = std::make_unique<PreviewWindow>(1280, 720, "Kaisei Preview - " + presetName);
+    window_ = std::make_unique<PreviewWindow>(1280, 720, windowTitle);
 
     backend_ = std::make_unique<backend::OpenGLBackend>();
     if (!backend_->initialize()) {
@@ -41,7 +46,9 @@ void PreviewRenderer::run(const std::string& imagePath, const std::string& prese
     spdlog::info("Loaded image: {}x{}", imageWidth_, imageHeight_);
 
     renderer_ = std::make_unique<renderer::MultiPassRenderer>(*backend_, registry_.modules());
-    renderer_->loadPreset(*preset);
+    if (preset) {
+        renderer_->loadPreset(*preset);
+    }
 
     while (!window_->shouldClose()) {
         window_->pollEvents();

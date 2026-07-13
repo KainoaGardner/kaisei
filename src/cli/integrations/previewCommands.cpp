@@ -17,8 +17,7 @@ void PreviewCommands::setup(CLI::App* app, core::Registry& registry) {
 void PreviewCommands::start(core::Registry& registry, const std::string& imagePath) {
     std::string finalPreset = registry.getCurrentPreset();
     if (finalPreset.empty()) {
-        spdlog::error("No current preset is selected. Use 'kaisei preset select <name>' first.");
-        return;
+        spdlog::info("No current preset is selected. Using passthrough filter");
     }
 
     std::string finalImage = imagePath;

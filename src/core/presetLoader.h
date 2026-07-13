@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "core/preset.h"
+#include "core/moduleLoader.h"
 
 namespace kaisei::core {
 
@@ -24,8 +25,8 @@ public:
 
     void save(const std::string& name);
     void deletePreset(const std::string& name);
-    void exportPreset(const std::string& name, const std::filesystem::path& filePath);
-    void importPreset(const std::filesystem::path& filePath);
+    void exportPreset(const std::string& name, const std::filesystem::path& filePath, const ModuleLoader& moduleLoader);
+    void importPreset(const std::filesystem::path& filePath, ModuleLoader& moduleLoader);
 
     const Preset* getPreset(const std::string& name) const;
     Preset* getPresetMutable(const std::string& name);

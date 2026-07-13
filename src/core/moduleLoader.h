@@ -16,6 +16,7 @@ public:
 
     void addSearchPath(const std::filesystem::path& path);
     void setStandardSavePath(const std::filesystem::path& path);
+    const std::filesystem::path& standardSavePath() const { return standardSavePath_; }
     void scanModules();
 
     const Module* getModule(const std::string& name) const;

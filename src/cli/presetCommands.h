@@ -22,6 +22,8 @@ private:
     static void unselect(core::Registry& registry);
     static void next(core::Registry& registry);
     static void prev(core::Registry& registry);
+    static void exportPreset(core::Registry& registry, const std::string& name, const std::string& path);
+    static void importPreset(core::Registry& registry, const std::string& path);
 };
 
 } // namespace kaisei::cli

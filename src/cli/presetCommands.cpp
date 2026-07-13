@@ -89,6 +89,20 @@ void PresetCommands::setup(CLI::App* preset, core::Registry& registry) {
     // preset prev
     auto* prev = preset->add_subcommand("prev", "Cycle to previous preset");
     prev->callback([&]() { PresetCommands::prev(registry); });
+
+    // preset export <name> <path>
+    auto* exp = preset->add_subcommand("export", "Export a preset and its modules as a bundle");
+    static std::string exportPresetName;
+    static std::string exportPath;
+    exp->add_option("preset", exportPresetName, "Preset name to export")->required();
+    exp->add_option("path", exportPath, "Destination bundle directory path")->required();
+    exp->callback([&]() { PresetCommands::exportPreset(registry, exportPresetName, exportPath); });
+
+    // preset import <path>
+    auto* imp = preset->add_subcommand("import", "Import a preset bundle or file");
+    static std::string importPath;
+    imp->add_option("path", importPath, "Path to the bundle directory or .preset file")->required();
+    imp->callback([&]() { PresetCommands::importPreset(registry, importPath); });
 }
 
 void PresetCommands::create(core::Registry& registry, const std::string& name, const std::string& version, const std::string& description) {
@@ -293,6 +307,25 @@ void PresetCommands::prev(core::Registry& registry) {
         std::cout << utils::bold("Previous preset: ") << preset << "\n";
     } catch (const std::exception& e) {
         spdlog::error("Failed to cycle to previous preset: {}", e.what());
+    }
+}
+
+void PresetCommands::exportPreset(core::Registry& registry, const std::string& name, const std::string& path) {
+    try {
+        registry.presets().exportPreset(name, path, registry.modules());
+        std::cout << utils::bold("Successfully exported preset bundle '") << name << "' to " << path << "\n";
+    } catch (const std::exception& e) {
+        spdlog::error("Export failed: {}", e.what());
+    }
+}
+
+void PresetCommands::importPreset(core::Registry& registry, const std::string& path) {
+    try {
+        registry.presets().importPreset(path, registry.modules());
+        registry.reload();
+        std::cout << utils::bold("Successfully imported preset bundle/file from ") << path << "\n";
+    } catch (const std::exception& e) {
+        spdlog::error("Import failed: {}", e.what());
     }
 }
 

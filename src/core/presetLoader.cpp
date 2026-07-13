@@ -271,19 +271,125 @@ void PresetLoader::deletePreset(const std::string& name) {
     spdlog::info("Deleted preset '{}'", name);
 }
 
-void PresetLoader::exportPreset(const std::string& name, const std::filesystem::path& filePath) {
+void PresetLoader::exportPreset(const std::string& name, const std::filesystem::path& filePath, const ModuleLoader& moduleLoader) {
     auto it = presets_.find(name);
     if (it == presets_.end()) {
         throw std::runtime_error("Preset not found: " + name);
     }
 
-    savePreset(*it->second, filePath);
-    spdlog::info("Exported preset '{}' to {}", name, filePath.string());
+    const auto& preset = *it->second;
+
+    try {
+        std::filesystem::create_directories(filePath);
+        auto presetDestFile = filePath / (preset.name() + ".preset");
+        savePreset(preset, presetDestFile);
+
+        auto modulesDestDir = filePath / "modules";
+        for (const auto& presetModule : preset.modules()) {
+            const std::string& mName = presetModule.moduleName;
+            if (!moduleLoader.hasModule(mName)) {
+                spdlog::warn("Referenced module '{}' not found in loader, skipping copy of module files", mName);
+                continue;
+            }
+
+            const auto* module = moduleLoader.getModule(mName);
+            auto moduleSrcDir = module->path();
+            auto moduleDestDir = modulesDestDir / mName;
+
+            std::filesystem::create_directories(moduleDestDir);
+
+            std::string tomlFilename = module->metadata().name + ".toml";
+            std::filesystem::copy_file(
+                moduleSrcDir / tomlFilename,
+                moduleDestDir / tomlFilename,
+                std::filesystem::copy_options::overwrite_existing
+            );
+
+            if (module->isMultiPass()) {
+                for (const auto& pass : module->passes()) {
+                    std::filesystem::copy_file(
+                        moduleSrcDir / pass.file,
+                        moduleDestDir / pass.file,
+                        std::filesystem::copy_options::overwrite_existing
+                    );
+                }
+            } else {
+                if (!module->metadata().shaderFile.empty()) {
+                    std::filesystem::copy_file(
+                        moduleSrcDir / module->metadata().shaderFile,
+                        moduleDestDir / module->metadata().shaderFile,
+                        std::filesystem::copy_options::overwrite_existing
+                    );
+                }
+            }
+        }
+        spdlog::info("Exported preset '{}' and its modules to bundle directory: {}", name, filePath.string());
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Failed to export preset bundle: " + std::string(e.what()));
+    }
 }
 
-void PresetLoader::importPreset(const std::filesystem::path& filePath) {
-    auto preset = loadPreset(filePath);
+void PresetLoader::importPreset(const std::filesystem::path& filePath, ModuleLoader& moduleLoader) {
+    std::filesystem::path presetFile;
+    bool isDirectoryBundle = false;
+
+    if (std::filesystem::is_directory(filePath)) {
+        isDirectoryBundle = true;
+        // Search first for any file ending in .preset
+        for (const auto& entry : std::filesystem::directory_iterator(filePath)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".preset") {
+                presetFile = entry.path();
+                break;
+            }
+        }
+        // Fallback to searching for any file ending in .toml or named preset.toml
+        if (presetFile.empty()) {
+            if (std::filesystem::exists(filePath / "preset.toml")) {
+                presetFile = filePath / "preset.toml";
+            } else {
+                for (const auto& entry : std::filesystem::directory_iterator(filePath)) {
+                    if (entry.is_regular_file() && entry.path().extension() == ".toml") {
+                        presetFile = entry.path();
+                        break;
+                    }
+                }
+            }
+        }
+        if (presetFile.empty()) {
+            throw std::runtime_error("No preset file (.preset or .toml) found in bundle directory: " + filePath.string());
+        }
+    } else {
+        presetFile = filePath;
+    }
+
+    auto preset = loadPreset(presetFile);
     const auto& name = preset->name();
+
+    if (isDirectoryBundle) {
+        auto modulesSrcDir = filePath / "modules";
+        if (std::filesystem::exists(modulesSrcDir) && std::filesystem::is_directory(modulesSrcDir)) {
+            auto destModulesBase = moduleLoader.standardSavePath();
+            if (destModulesBase.empty()) {
+                throw std::runtime_error("Standard module save path not set, cannot import modules");
+            }
+
+            for (const auto& entry : std::filesystem::directory_iterator(modulesSrcDir)) {
+                if (entry.is_directory()) {
+                    auto mName = entry.path().filename();
+                    auto destModuleDir = destModulesBase / mName;
+
+                    std::filesystem::create_directories(destModuleDir);
+                    std::filesystem::copy(
+                        entry.path(),
+                        destModuleDir,
+                        std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing
+                    );
+                    spdlog::info("Imported module '{}' to {}", mName.string(), destModuleDir.string());
+                }
+            }
+            moduleLoader.reload();
+        }
+    }
 
     if (presets_.count(name)) {
         spdlog::warn("Preset '{}' already exists, replacing", name);

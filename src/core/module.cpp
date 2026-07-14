@@ -92,7 +92,9 @@ void Module::loadMetadata(const std::filesystem::path& tomlFile) {
                 TextureInput texture;
                 texture.name = (*textureTable)["name"].value_or<std::string>("");
                 texture.description = (*textureTable)["description"].value_or<std::string>("");
-                texture.optional = (*textureTable)["optional"].value_or(false);
+                if (auto defVal = (*textureTable)["default"].value<std::string>()) {
+                    texture.defaultValue = *defVal;
+                }
 
                 metadata_.textures.push_back(texture);
             }

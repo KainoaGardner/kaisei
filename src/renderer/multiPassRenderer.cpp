@@ -191,7 +191,8 @@ void MultiPassRenderer::compilePass(const std::string& moduleName) {
     }
 }
 
-uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32_t height, uint32_t outputFbo) {
+uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32_t height, uint32_t outputFbo,
+                                   const std::map<std::string, uint32_t>& externalTextures) {
     compileIfNeeded();
 
     auto now = std::chrono::steady_clock::now();
@@ -290,6 +291,74 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
                     }
                 }
             }
+
+            uint32_t textureSlot = 1;
+            for (const auto& textureDecl : module->metadata().textures) {
+                auto extIt = externalTextures.find(textureDecl.name);
+                if (extIt != externalTextures.end()) {
+                    uint32_t textureId = extIt->second;
+                    if (textureId != 0) {
+                        backend_.bindTexture(textureId, textureSlot);
+                        backend_.setUniformInt(pass.program, textureDecl.name, textureSlot);
+                        textureSlot++;
+                    }
+                    continue;
+                }
+
+                std::string texturePath;
+                bool found = false;
+
+                if (currentPreset_) {
+                    for (const auto& presetModule : currentPreset_->modules()) {
+                        if (presetModule.moduleName == pass.moduleName) {
+                            auto it = presetModule.uniformOverrides.find(textureDecl.name);
+                            if (it != presetModule.uniformOverrides.end()) {
+                                texturePath = it->second;
+                                found = true;
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                if (!found && textureDecl.defaultValue) {
+                    texturePath = *textureDecl.defaultValue;
+                    found = true;
+                }
+
+                if (found && !texturePath.empty()) {
+                    std::filesystem::path resolvedPath = texturePath;
+                    if (!resolvedPath.is_absolute()) {
+                        auto moduleRelative = module->path() / texturePath;
+                        if (std::filesystem::exists(moduleRelative)) {
+                            resolvedPath = moduleRelative;
+                        }
+                    }
+
+                    std::string resolvedPathStr = resolvedPath.lexically_normal().string();
+                    uint32_t textureId = 0;
+                    auto cachedIt = loadedTextures_.find(resolvedPathStr);
+                    if (cachedIt != loadedTextures_.end()) {
+                        textureId = cachedIt->second;
+                    } else {
+                        try {
+                            textureId = backend_.loadTextureFromFile(resolvedPathStr);
+                            loadedTextures_[resolvedPathStr] = textureId;
+                            spdlog::info("Loaded texture uniform '{}' for module '{}' from '{}'",
+                                         textureDecl.name, pass.moduleName, resolvedPathStr);
+                        } catch (const std::exception& e) {
+                            spdlog::error("Failed to load texture for uniform '{}' from '{}': {}",
+                                          textureDecl.name, resolvedPathStr, e.what());
+                        }
+                    }
+
+                    if (textureId != 0) {
+                        backend_.bindTexture(textureId, textureSlot);
+                        backend_.setUniformInt(pass.program, textureDecl.name, textureSlot);
+                        textureSlot++;
+                    }
+                }
+            }
         }
 
         backend_.drawFullscreenQuad();
@@ -331,6 +400,11 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
 void MultiPassRenderer::cleanup() {
     cleanupPasses();
     cleanupFramebuffers();
+
+    for (auto& [path, textureId] : loadedTextures_) {
+        backend_.deleteTexture(textureId);
+    }
+    loadedTextures_.clear();
 
     if (vertexShader_) {
         glDeleteShader(vertexShader_);

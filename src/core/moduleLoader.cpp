@@ -180,6 +180,12 @@ void ModuleLoader::createModule(const std::string& name,
     tomlFile << "# description = \"Effect intensity\"\n";
     tomlFile << "# min = 0.0\n";
     tomlFile << "# max = 2.0\n";
+    tomlFile << "\n";
+    tomlFile << "# Add custom textures for your shader\n";
+    tomlFile << "# [[textures]]\n";
+    tomlFile << "# name = \"u_noiseTexture\"\n";
+    tomlFile << "# default = \"textures/noise.png\"\n";
+    tomlFile << "# description = \"Noise input texture\"\n";
     tomlFile.close();
 
     if (stage) {

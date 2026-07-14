@@ -25,7 +25,7 @@ struct UniformDeclaration {
 struct TextureInput {
     std::string name;
     std::string description;
-    bool optional;
+    std::optional<std::string> defaultValue;
 };
 
 struct Pass {

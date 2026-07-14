@@ -231,8 +231,8 @@ void ModuleCommands::info(core::Registry& registry, const std::string& name) {
         std::cout << utils::bold("\nTextures:\n");
         for (const auto& texture : metadata.textures) {
             std::cout << "  " << texture.name;
-            if (texture.optional) {
-                std::cout << " (optional)";
+            if (texture.defaultValue) {
+                std::cout << " = " << *texture.defaultValue;
             }
             std::cout << "\n";
             if (!texture.description.empty()) {

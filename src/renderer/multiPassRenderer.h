@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <map>
 #include <memory>
 #include <random>
 #include <string>
@@ -25,7 +26,8 @@ public:
     void loadPreset(const core::Preset& preset);
     void cleanup();
 
-    uint32_t render(uint32_t inputTexture, uint32_t width, uint32_t height, uint32_t outputFbo = 0);
+    uint32_t render(uint32_t inputTexture, uint32_t width, uint32_t height, uint32_t outputFbo = 0,
+                    const std::map<std::string, uint32_t>& externalTextures = {});
 
     void setMousePosition(float x, float y) { mouseX_ = x; mouseY_ = y; }
     void setMouseButtons(bool left, bool right) { mouseLeftButton_ = left; mouseRightButton_ = right; }
@@ -66,6 +68,8 @@ private:
     bool mouseRightButton_;
     std::mt19937 randomEngine_;
     std::uniform_real_distribution<float> randomDist_;
+
+    std::map<std::string, uint32_t> loadedTextures_;
 };
 
 } // namespace kaisei::renderer

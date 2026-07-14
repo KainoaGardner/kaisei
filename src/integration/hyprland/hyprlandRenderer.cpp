@@ -18,19 +18,19 @@ HyprlandRenderer::HyprlandRenderer(core::Registry& registry)
         throw std::runtime_error("Failed to initialize Hyprland backend");
     }
 
-    // Set up inotify watching for current preset file
     const char* homeDir = std::getenv("HOME");
     if (homeDir) {
         currentPresetFile_ = std::filesystem::path(homeDir) / ".local/share/kaisei/current_preset";
 
         inotifyFd_ = inotify_init1(IN_NONBLOCK);
         if (inotifyFd_ >= 0) {
-            // Watch for modify and create events
-            watchFd_ = inotify_add_watch(inotifyFd_, currentPresetFile_.c_str(), IN_MODIFY | IN_CREATE);
+            auto parentDir = currentPresetFile_.parent_path();
+            std::filesystem::create_directories(parentDir);
+            watchFd_ = inotify_add_watch(inotifyFd_, parentDir.c_str(), IN_MODIFY | IN_CREATE | IN_CLOSE_WRITE);
             if (watchFd_ < 0) {
-                spdlog::debug("Could not watch current preset file (will be created on first preset change)");
+                spdlog::error("Could not watch current preset directory: {}", parentDir.string());
             } else {
-                spdlog::debug("Watching current preset file: {}", currentPresetFile_.string());
+                spdlog::debug("Watching current preset directory: {}", parentDir.string());
             }
         }
     }
@@ -89,6 +89,7 @@ void HyprlandRenderer::setEnabled(bool enabled) {
 }
 
 std::string HyprlandRenderer::getStatus() const {
+    const_cast<HyprlandRenderer*>(this)->checkPresetFileChange();
     std::string status = utils::bold("Hyprland Integration Status:\n");
     status += utils::bold("  Preset: ") + (currentPreset_.empty() ? "none" : currentPreset_) + "\n";
     status += utils::bold("  Enabled: ") + std::string(enabled_ ? "yes" : "no") + "\n";
@@ -111,18 +112,34 @@ void HyprlandRenderer::render(uint32_t inputTexture, uint32_t outputFbo, uint32_
 }
 
 void HyprlandRenderer::checkPresetFileChange() {
-    if (inotifyFd_ < 0) {
+    if (inotifyFd_ < 0 || watchFd_ < 0) {
         return;
     }
 
-    char buffer[1024];
+    char buffer[4096] __attribute__ ((aligned(__alignof__(struct inotify_event))));
     ssize_t len = read(inotifyFd_, buffer, sizeof(buffer));
 
     if (len <= 0) {
         return;
     }
 
-    // File was modified, read the new preset name
+    bool fileChanged = false;
+    const struct inotify_event* event;
+    for (char* ptr = buffer; ptr < buffer + len; ptr += sizeof(struct inotify_event) + event->len) {
+        event = reinterpret_cast<const struct inotify_event*>(ptr);
+        if (event->len > 0) {
+            std::string filename(event->name);
+            if (filename == "current_preset") {
+                fileChanged = true;
+                break;
+            }
+        }
+    }
+
+    if (!fileChanged) {
+        return;
+    }
+
     std::ifstream file(currentPresetFile_);
     if (!file) {
         return;
@@ -132,11 +149,14 @@ void HyprlandRenderer::checkPresetFileChange() {
     std::getline(file, newPreset);
     file.close();
 
+    if (!newPreset.empty() && newPreset.back() == '\r') {
+        newPreset.pop_back();
+    }
+
     if (newPreset.empty() || newPreset == currentPreset_) {
         return;
     }
 
-    // Load the new preset
     try {
         loadPreset(newPreset);
         spdlog::info("Auto-loaded preset '{}' from file change", newPreset);

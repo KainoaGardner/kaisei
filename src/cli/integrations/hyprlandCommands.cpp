@@ -29,6 +29,10 @@ void HyprlandCommands::setup(CLI::App* app) {
     // hyprland status
     auto* status = app->add_subcommand("status", "Check Hyprland integration status");
     status->callback([]() { HyprlandCommands::status(); });
+
+    // hyprland reload
+    auto* reload = app->add_subcommand("reload", "Reload current preset in Hyprland plugin");
+    reload->callback([]() { HyprlandCommands::reload(); });
 }
 
 void HyprlandCommands::on() {
@@ -64,6 +68,15 @@ void HyprlandCommands::status() {
         std::cout << response << "\n";
     } catch (const std::exception& e) {
         spdlog::error("Failed to get status: {}", e.what());
+    }
+}
+
+void HyprlandCommands::reload() {
+    try {
+        std::string response = sendCommand("RELOAD");
+        std::cout << response << "\n";
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to reload: {}", e.what());
     }
 }
 

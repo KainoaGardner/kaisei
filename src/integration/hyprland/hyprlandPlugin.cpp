@@ -115,6 +115,7 @@ enum class CommandType {
     Off,
     Toggle,
     Status,
+    Reload,
     Unknown
 };
 
@@ -127,6 +128,8 @@ static CommandType parseCommand(const std::string& command, std::string& arg) {
         return CommandType::Toggle;
     } else if (command == "STATUS") {
         return CommandType::Status;
+    } else if (command == "RELOAD") {
+        return CommandType::Reload;
     }
     return CommandType::Unknown;
 }
@@ -137,6 +140,8 @@ static std::string handleCommand(const std::string& command) {
     if (g_shuttingDown.load() || !g_renderer) {
         return "ERROR:Plugin is shutting down";
     }
+
+    g_renderer->checkPresetFileChange();
 
     std::string arg;
     CommandType cmdType = parseCommand(command, arg);
@@ -177,6 +182,17 @@ static std::string handleCommand(const std::string& command) {
 
         case CommandType::Status:
             return g_renderer->getStatus();
+
+        case CommandType::Reload:
+            try {
+                g_renderer->loadCurrentPreset();
+                spdlog::info("Preset reloaded inside Hyprland plugin");
+                damageAllMonitors();
+                return utils::bold("Preset reloaded: '" + g_renderer->getCurrentPreset() + "'");
+            } catch (const std::exception& e) {
+                spdlog::error("Failed to reload preset: {}", e.what());
+                return "ERROR:" + std::string(e.what());
+            }
 
         case CommandType::Unknown:
             spdlog::warn("Unknown command: {}", command);

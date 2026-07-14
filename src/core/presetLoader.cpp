@@ -183,31 +183,23 @@ void PresetLoader::savePreset(const Preset& preset, const std::filesystem::path&
         {"description", preset.description()}
     });
 
-    toml::array modulesArray;
-    for (const auto& module : preset.modules()) {
-        toml::table moduleTable{
-            {"name", module.moduleName}
-        };
-
-        if (!module.uniformOverrides.empty()) {
-            toml::table overridesTable;
-            for (const auto& [key, value] : module.uniformOverrides) {
-                overridesTable.insert(key, value);
-            }
-            moduleTable.insert("overrides", overridesTable);
-        }
-
-        modulesArray.push_back(moduleTable);
-    }
-
-    root.insert("modules", modulesArray);
-
     std::ofstream file(filePath);
     if (!file.is_open()) {
         throw std::runtime_error("Failed to open file for writing: " + filePath.string());
     }
 
     file << root;
+
+    if (preset.modules().empty()) {
+        file << "\n\n";
+        file << "# Add modules and overrides to your preset\n";
+        file << "# [[modules]]\n";
+        file << "# name = \"brightness\"\n";
+        file << "#\n";
+        file << "# [modules.overrides]\n";
+        file << "# u_brightness = \"2.0\"\n";
+    }
+
     spdlog::info("Saved preset '{}' to {}", preset.name(), filePath.string());
 }
 

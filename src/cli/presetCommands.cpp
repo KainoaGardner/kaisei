@@ -109,7 +109,7 @@ void PresetCommands::create(core::Registry& registry, const std::string& name, c
     auto* preset = registry.presets().createPreset(name, version, description);
     registry.presets().reload();
 
-    std::cout << utils::bold("Created preset: ") << preset->name() << " " << preset->version() << "\n";
+    std::cout << utils::bold("Created preset: ") << name << " " << version << "\n";
     if (!description.empty()) {
         std::cout << utils::bold("Description: ") << description << "\n";
     }

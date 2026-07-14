@@ -55,6 +55,20 @@ void ModuleCommands::setup(CLI::App* module, core::Registry& registry) {
     static std::string shaderPath;
     compile->add_option("file", shaderPath, "Path to the shader file (.frag)")->required();
     compile->callback([&]() { ModuleCommands::compileShader(shaderPath); });
+
+    // module export <name> <path>
+    auto* exp = module->add_subcommand("export", "Export a module to a directory");
+    static std::string exportModuleName;
+    static std::string exportPath;
+    exp->add_option("module", exportModuleName, "Module name to export")->required();
+    exp->add_option("path", exportPath, "Destination directory path")->required();
+    exp->callback([&]() { ModuleCommands::exportModule(registry, exportModuleName, exportPath); });
+
+    // module import <path>
+    auto* imp = module->add_subcommand("import", "Import a module from a directory or .toml file");
+    static std::string importPath;
+    imp->add_option("path", importPath, "Path to the module directory or .toml file")->required();
+    imp->callback([&]() { ModuleCommands::importModule(registry, importPath); });
 }
 
 void ModuleCommands::compileShader(const std::string& shaderPath) {
@@ -257,6 +271,25 @@ void ModuleCommands::deleteModule(core::Registry& registry, const std::string& n
         std::cout << utils::bold("Deleted module: ") << name << "\n";
     } catch (const std::exception& e) {
         spdlog::error("Failed to delete module: {}", e.what());
+    }
+}
+
+void ModuleCommands::exportModule(core::Registry& registry, const std::string& name, const std::string& path) {
+    try {
+        registry.modules().exportModule(name, path);
+        std::cout << utils::bold("Successfully exported module '") << name << "' to " << path << "\n";
+    } catch (const std::exception& e) {
+        spdlog::error("Export failed: {}", e.what());
+    }
+}
+
+void ModuleCommands::importModule(core::Registry& registry, const std::string& path) {
+    try {
+        registry.modules().importModule(path);
+        registry.reload();
+        std::cout << utils::bold("Successfully imported module from ") << path << "\n";
+    } catch (const std::exception& e) {
+        spdlog::error("Import failed: {}", e.what());
     }
 }
 

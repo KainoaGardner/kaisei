@@ -31,6 +31,9 @@ public:
                      bool stage = false);
     void deleteModule(const std::string& name);
 
+    void exportModule(const std::string& name, const std::filesystem::path& destPath);
+    void importModule(const std::filesystem::path& srcPath);
+
     void reload();
     void clear();
 

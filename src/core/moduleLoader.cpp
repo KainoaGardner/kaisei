@@ -5,6 +5,7 @@
 #include <stdexcept>
 
 #include <spdlog/spdlog.h>
+#include <toml++/toml.h>
 
 namespace kaisei::core {
 
@@ -362,6 +363,113 @@ void ModuleLoader::deleteModule(const std::string& name) {
         spdlog::info("Deleted module '{}'", name);
     } else {
         spdlog::warn("No files found to delete for module '{}'", name);
+    }
+}
+
+void ModuleLoader::exportModule(const std::string& name, const std::filesystem::path& destPath) {
+    if (!hasModule(name)) {
+        throw std::runtime_error("Module not found: " + name);
+    }
+    const auto* module = getModule(name);
+    auto moduleSrcDir = module->path();
+
+    try {
+        std::filesystem::create_directories(destPath);
+        std::filesystem::copy(
+            moduleSrcDir,
+            destPath,
+            std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing
+        );
+        spdlog::info("Exported module '{}' from {} to {}", name, moduleSrcDir.string(), destPath.string());
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Failed to export module: " + std::string(e.what()));
+    }
+}
+
+void ModuleLoader::importModule(const std::filesystem::path& srcPath) {
+    std::filesystem::path tomlFile;
+    bool isDirectory = std::filesystem::is_directory(srcPath);
+
+    if (isDirectory) {
+        for (const auto& entry : std::filesystem::directory_iterator(srcPath)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".toml") {
+                tomlFile = entry.path();
+                break;
+            }
+        }
+        if (tomlFile.empty()) {
+            throw std::runtime_error("No module metadata file (.toml) found in directory: " + srcPath.string());
+        }
+    } else if (std::filesystem::is_regular_file(srcPath) && srcPath.extension() == ".toml") {
+        tomlFile = srcPath;
+    } else {
+        throw std::runtime_error("Invalid module import path: must be a directory or a .toml file");
+    }
+
+    std::string mName;
+    try {
+        auto config = toml::parse_file(tomlFile.string());
+        auto moduleNode = config["module"];
+        mName = moduleNode["name"].value_or<std::string>("");
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Failed to parse module metadata TOML: " + std::string(e.what()));
+    }
+
+    if (mName.empty()) {
+        throw std::runtime_error("Invalid module file: 'module.name' is missing or empty in " + tomlFile.string());
+    }
+
+    if (standardSavePath_.empty()) {
+        throw std::runtime_error("Standard module save path not set, cannot import module");
+    }
+
+    auto destModuleDir = standardSavePath_ / mName;
+    try {
+        std::filesystem::create_directories(destModuleDir);
+
+        if (isDirectory) {
+            std::filesystem::copy(
+                srcPath,
+                destModuleDir,
+                std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing
+            );
+        } else {
+            std::filesystem::copy_file(tomlFile, destModuleDir / tomlFile.filename(), std::filesystem::copy_options::overwrite_existing);
+
+            auto srcDir = tomlFile.parent_path();
+            auto config = toml::parse_file(tomlFile.string());
+            auto moduleNode = config["module"];
+            std::string typeStr = moduleNode["type"].value_or<std::string>("module");
+
+            if (typeStr == "module") {
+                auto shader = config["shader"];
+                std::string shaderFile = shader["file"].value_or<std::string>("");
+                if (!shaderFile.empty()) {
+                    auto srcShader = srcDir / shaderFile;
+                    if (std::filesystem::exists(srcShader)) {
+                        std::filesystem::copy_file(srcShader, destModuleDir / shaderFile, std::filesystem::copy_options::overwrite_existing);
+                    }
+                }
+            } else if (typeStr == "stage") {
+                if (auto passesArray = config["passes"].as_array()) {
+                    for (auto& passNode : *passesArray) {
+                        auto passTable = passNode.as_table();
+                        if (!passTable) continue;
+                        std::string passFile = (*passTable)["file"].value_or<std::string>("");
+                        if (!passFile.empty()) {
+                            auto srcPassShader = srcDir / passFile;
+                            if (std::filesystem::exists(srcPassShader)) {
+                                std::filesystem::copy_file(srcPassShader, destModuleDir / passFile, std::filesystem::copy_options::overwrite_existing);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        spdlog::info("Imported module '{}' to {}", mName, destModuleDir.string());
+        reload();
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Failed to import module: " + std::string(e.what()));
     }
 }
 

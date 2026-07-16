@@ -29,11 +29,14 @@ public:
     void setDescription(const std::string& desc) { description_ = desc; }
     void setVersion(const std::string& version) { version_ = version; }
     void setSourcePath(const std::filesystem::path& path) { sourcePath_ = path; }
+    bool animated() const { return animated_; }
+    void setAnimated(bool animated) { animated_ = animated; }
 
 private:
     std::string name_;
     std::string description_;
     std::string version_;
+    bool animated_;
     std::filesystem::path sourcePath_;
     std::vector<PresetModule> modules_;
 };

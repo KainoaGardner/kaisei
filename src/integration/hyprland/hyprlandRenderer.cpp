@@ -254,4 +254,8 @@ void HyprlandRenderer::loadCurrentPreset() {
     loadPreset(presetName);
 }
 
+bool HyprlandRenderer::needsContinuousRendering() const {
+    return enabled_ && renderer_ && renderer_->needsContinuousRendering();
+}
+
 } // namespace kaisei::integration::hyprland

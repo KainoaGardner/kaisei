@@ -534,4 +534,8 @@ void MultiPassRenderer::setAutomaticUniforms(uint32_t program, uint32_t inputTex
         0.0f, 0.0f);
 }
 
+bool MultiPassRenderer::needsContinuousRendering() const {
+    return currentPreset_ && currentPreset_->animated();
+}
+
 } // namespace kaisei::renderer

@@ -126,6 +126,7 @@ std::unique_ptr<Preset> PresetLoader::loadPreset(const std::filesystem::path& fi
         std::string name = presetTable["name"].value_or<std::string>("");
         std::string version = presetTable["version"].value_or<std::string>("1.0");
         std::string description = presetTable["description"].value_or<std::string>("");
+        bool animated = presetTable["animated"].value_or<bool>(false);
 
         if (name.empty()) {
             throw std::runtime_error("Preset name is required");
@@ -133,6 +134,7 @@ std::unique_ptr<Preset> PresetLoader::loadPreset(const std::filesystem::path& fi
 
         auto preset = std::make_unique<Preset>(name, version);
         preset->setDescription(description);
+        preset->setAnimated(animated);
         preset->setSourcePath(filePath);
 
         if (auto modulesArray = config["modules"].as_array()) {
@@ -180,7 +182,8 @@ void PresetLoader::savePreset(const Preset& preset, const std::filesystem::path&
     root.insert("preset", toml::table{
         {"name", preset.name()},
         {"version", preset.version()},
-        {"description", preset.description()}
+        {"description", preset.description()},
+        {"animated", preset.animated()}
     });
 
     if (!preset.modules().empty()) {

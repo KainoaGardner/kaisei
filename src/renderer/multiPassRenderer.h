@@ -34,6 +34,8 @@ public:
 
     void reload();
 
+    bool needsContinuousRendering() const;
+
     uint32_t getPassthroughProgram() const { return passthroughProgram_; }
 
 private:

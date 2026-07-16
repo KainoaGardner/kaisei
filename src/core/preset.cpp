@@ -7,7 +7,7 @@
 namespace kaisei::core {
 
 Preset::Preset(const std::string& name, const std::string& version)
-    : name_(name), version_(version) {
+    : name_(name), version_(version), animated_(false) {
 }
 
 void Preset::addModule(const std::string& moduleName,

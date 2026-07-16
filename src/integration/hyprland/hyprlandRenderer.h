@@ -17,6 +17,7 @@ public:
     void loadPreset(const std::string& name);
     void setEnabled(bool enabled);
     bool isEnabled() const { return enabled_; }
+    bool needsContinuousRendering() const;
 
     std::string getCurrentPreset() const { return currentPreset_; }
     std::string getStatus() const;

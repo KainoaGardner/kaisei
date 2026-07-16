@@ -96,6 +96,10 @@ static CRegion hook_renderPass(Render::CRenderPass* thisptr, const CRegion& dama
     g_renderer->render(tex->m_texID, glFB->getFBID(),
                       monitor->m_pixelSize.x, monitor->m_pixelSize.y);
 
+    if (g_renderer && g_renderer->needsContinuousRendering()) {
+        g_pHyprRenderer->damageMonitor(monitor);
+    }
+
     glUseProgram(oldProgram);
     glBindFramebuffer(GL_FRAMEBUFFER, oldFBO);
     glBindVertexArray(oldVAO);

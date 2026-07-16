@@ -8,9 +8,16 @@
 #include <spdlog/spdlog.h>
 #include "integration/hyprland/hyprlandBackend.h"
 #include "utils/format.h"
+ 
 
 namespace kaisei::integration::hyprland {
 
+struct TextureSlotState {
+    GLint tex2D = 0;
+    GLint texExternal = 0;
+    GLint texRect = 0;
+};
+ 
 HyprlandRenderer::HyprlandRenderer(core::Registry& registry)
     : registry_(registry), enabled_(false), inotifyFd_(-1), watchFd_(-1) {
     backend_ = std::make_unique<HyprlandOpenGLBackend>();
@@ -102,20 +109,44 @@ void HyprlandRenderer::render(uint32_t inputTexture, uint32_t outputFbo, uint32_
         return;
     }
 
+    #ifndef GL_TEXTURE_EXTERNAL_OES
+    #define GL_TEXTURE_EXTERNAL_OES 0x8D65
+    #endif
+    #ifndef GL_TEXTURE_BINDING_EXTERNAL_OES
+    #define GL_TEXTURE_BINDING_EXTERNAL_OES 0x8D7F
+    #endif
+    #ifndef GL_TEXTURE_RECTANGLE
+    #define GL_TEXTURE_RECTANGLE 0x84F5
+    #endif
+    #ifndef GL_TEXTURE_BINDING_RECTANGLE
+    #define GL_TEXTURE_BINDING_RECTANGLE 0x84F6
+    #endif
+
     GLint originalActiveTexture = GL_TEXTURE0;
     glGetIntegerv(GL_ACTIVE_TEXTURE, &originalActiveTexture);
 
-    GLint originalTexture0 = 0;
-    glActiveTexture(GL_TEXTURE0);
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &originalTexture0);
 
-    GLint originalTexture1 = 0;
-    glActiveTexture(GL_TEXTURE1);
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &originalTexture1);
+    TextureSlotState savedSlots[5];
 
-    GLint originalTexture2 = 0;
-    glActiveTexture(GL_TEXTURE2);
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &originalTexture2);
+    for (int slot = 0; slot < 5; ++slot) {
+        glActiveTexture(GL_TEXTURE0 + slot);
+        
+        // 2D target
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &savedSlots[slot].tex2D);
+        while (glGetError() != GL_NO_ERROR) {}
+
+        // External OES target
+        glGetIntegerv(GL_TEXTURE_BINDING_EXTERNAL_OES, &savedSlots[slot].texExternal);
+        if (glGetError() != GL_NO_ERROR) {
+            savedSlots[slot].texExternal = 0;
+        }
+
+        // Rectangle target
+        glGetIntegerv(GL_TEXTURE_BINDING_RECTANGLE, &savedSlots[slot].texRect);
+        if (glGetError() != GL_NO_ERROR) {
+            savedSlots[slot].texRect = 0;
+        }
+    }
 
     glActiveTexture(originalActiveTexture);
 
@@ -127,14 +158,18 @@ void HyprlandRenderer::render(uint32_t inputTexture, uint32_t outputFbo, uint32_
         enabled_ = false;
     }
 
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, originalTexture2);
+    for (int slot = 4; slot >= 0; --slot) {
+        glActiveTexture(GL_TEXTURE0 + slot);
 
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, originalTexture1);
+        glBindTexture(GL_TEXTURE_2D, savedSlots[slot].tex2D);
+        while (glGetError() != GL_NO_ERROR) {}
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, originalTexture0);
+        glBindTexture(GL_TEXTURE_EXTERNAL_OES, savedSlots[slot].texExternal);
+        while (glGetError() != GL_NO_ERROR) {}
+
+        glBindTexture(GL_TEXTURE_RECTANGLE, savedSlots[slot].texRect);
+        while (glGetError() != GL_NO_ERROR) {}
+    }
 
     glActiveTexture(originalActiveTexture);
 

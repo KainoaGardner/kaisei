@@ -245,6 +245,18 @@ void MultiPassRenderer::compilePass(const std::string& moduleName) {
 
 uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32_t height, uint32_t outputFbo,
                                    const std::map<std::string, uint32_t>& externalTextures) {
+    if (width == 0 || height == 0) {
+        return inputTexture;
+    }
+
+    GLboolean blendEnabled = glIsEnabled(GL_BLEND);
+    GLboolean depthEnabled = glIsEnabled(GL_DEPTH_TEST);
+    GLboolean scissorEnabled = glIsEnabled(GL_SCISSOR_TEST);
+
+    glDisable(GL_BLEND);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_SCISSOR_TEST);
+
     compileIfNeeded();
 
     auto now = std::chrono::steady_clock::now();
@@ -263,6 +275,11 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
 
         frameCount_++;
         lastFrameTime_ = now;
+
+        if (blendEnabled) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+        if (depthEnabled) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+        if (scissorEnabled) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
+
         return inputTexture;
     }
 
@@ -280,7 +297,7 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
         framebuffers_.push_back(backend_.createFramebuffer(width, height));
     }
 
-    bool needsIntermediateCopy = (outputFbo != 0 && inputTexture == outputFbo);
+    bool needsIntermediateCopy = (outputFbo != 0);
 
     uint32_t currentInput = inputTexture;
     uint32_t currentFBO = 0;
@@ -423,6 +440,10 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
 
     frameCount_++;
     lastFrameTime_ = now;
+
+    if (blendEnabled) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+    if (depthEnabled) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+    if (scissorEnabled) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
 
     if (outputFbo == 0) {
         if (passes_.size() == 1) {

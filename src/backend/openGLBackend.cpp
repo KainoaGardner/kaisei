@@ -187,6 +187,11 @@ uint32_t OpenGLBackend::loadTextureFromFile(const std::string& filePath) {
         throw std::runtime_error("Failed to load texture: " + filePath);
     }
 
+    GLint originalActiveTexture = GL_TEXTURE0;
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &originalActiveTexture);
+
+    glActiveTexture(GL_TEXTURE7);
+
     GLuint texture;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -199,6 +204,8 @@ uint32_t OpenGLBackend::loadTextureFromFile(const std::string& filePath) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     glBindTexture(GL_TEXTURE_2D, 0);
+
+    glActiveTexture(originalActiveTexture);
 
     stbi_image_free(data);
 

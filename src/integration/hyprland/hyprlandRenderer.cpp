@@ -58,7 +58,6 @@ void HyprlandRenderer::loadPreset(const std::string& name) {
 
     const auto* preset = registry_.presets().getPreset(name);
 
-    // Validate that all modules exist before loading
     if (!registry_.validatePreset(*preset)) {
         throw std::runtime_error("Preset '" + name + "' references missing modules");
     }
@@ -103,7 +102,41 @@ void HyprlandRenderer::render(uint32_t inputTexture, uint32_t outputFbo, uint32_
         return;
     }
 
-    renderer_->render(inputTexture, width, height, outputFbo);
+    GLint originalActiveTexture = GL_TEXTURE0;
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &originalActiveTexture);
+
+    GLint originalTexture0 = 0;
+    glActiveTexture(GL_TEXTURE0);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &originalTexture0);
+
+    GLint originalTexture1 = 0;
+    glActiveTexture(GL_TEXTURE1);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &originalTexture1);
+
+    GLint originalTexture2 = 0;
+    glActiveTexture(GL_TEXTURE2);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &originalTexture2);
+
+    glActiveTexture(originalActiveTexture);
+
+    try {
+        renderer_->render(inputTexture, width, height, outputFbo);
+    } catch (const std::exception& e) {
+        spdlog::error("Shader rendering or compilation failed: {}", e.what());
+        spdlog::warn("Disabling Kaisei effects to prevent crashing Hyprland");
+        enabled_ = false;
+    }
+
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, originalTexture2);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, originalTexture1);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, originalTexture0);
+
+    glActiveTexture(originalActiveTexture);
 
     GLenum err = glGetError();
     if (err != GL_NO_ERROR) {
@@ -183,9 +216,7 @@ void HyprlandRenderer::loadCurrentPreset() {
         throw std::runtime_error("No preset selected. Use 'kaisei preset select <name>' first");
     }
 
-    if (presetName != currentPreset_) {
-        loadPreset(presetName);
-    }
+    loadPreset(presetName);
 }
 
 } // namespace kaisei::integration::hyprland

@@ -1,5 +1,6 @@
 #include "renderer/multiPassRenderer.h"
 
+#include <algorithm>
 #include <ctime>
 #include <fstream>
 #include <sstream>
@@ -43,6 +44,57 @@ std::string readFile(const std::string& path) {
         searchedPaths += searchPaths[i];
     }
     throw std::runtime_error("Failed to open file: " + path + " (searched: " + searchedPaths + ")");
+}
+
+void applyUniform(kaisei::backend::Backend& backend, uint32_t program, const std::string& name, const std::string& type, const std::string& valueStr) {
+    try {
+        if (type == "float") {
+            backend.setUniformFloat(program, name, std::stof(valueStr));
+        } else if (type == "int") {
+            backend.setUniformInt(program, name, std::stoi(valueStr));
+        } else if (type == "vec2" || type == "vec3" || type == "vec4") {
+            std::string clean = valueStr;
+            clean.erase(std::remove(clean.begin(), clean.end(), '['), clean.end());
+            clean.erase(std::remove(clean.begin(), clean.end(), ']'), clean.end());
+            clean.erase(std::remove(clean.begin(), clean.end(), '('), clean.end());
+            clean.erase(std::remove(clean.begin(), clean.end(), ')'), clean.end());
+            clean.erase(std::remove(clean.begin(), clean.end(), '"'), clean.end());
+            clean.erase(std::remove(clean.begin(), clean.end(), '\''), clean.end());
+            std::replace(clean.begin(), clean.end(), ',', ' ');
+
+            std::stringstream ss(clean);
+            std::vector<float> values;
+            float val;
+            while (ss >> val) {
+                values.push_back(val);
+            }
+
+            if (type == "vec2") {
+                float x = values.size() > 0 ? values[0] : 0.0f;
+                float y = values.size() > 1 ? values[1] : 0.0f;
+                backend.setUniformVec2(program, name, x, y);
+            } else if (type == "vec3") {
+                float x = values.size() > 0 ? values[0] : 0.0f;
+                float y = values.size() > 1 ? values[1] : 0.0f;
+                float z = values.size() > 2 ? values[2] : 0.0f;
+                backend.setUniformVec3(program, name, x, y, z);
+            } else if (type == "vec4") {
+                float x = values.size() > 0 ? values[0] : 0.0f;
+                float y = values.size() > 1 ? values[1] : 0.0f;
+                float z = values.size() > 2 ? values[2] : 0.0f;
+                float w = values.size() > 3 ? values[3] : 0.0f;
+                backend.setUniformVec4(program, name, x, y, z, w);
+            }
+        } else {
+            try {
+                backend.setUniformFloat(program, name, std::stof(valueStr));
+            } catch (...) {
+                backend.setUniformInt(program, name, std::stoi(valueStr));
+            }
+        }
+    } catch (...) {
+        spdlog::warn("Failed to parse uniform '{}' of type '{}' with value '{}'", name, type, valueStr);
+    }
 }
 
 } 
@@ -256,18 +308,7 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
         if (module) {
             for (const auto& uniform : module->metadata().uniforms) {
                 if (uniform.defaultValue) {
-                    try {
-                        float fvalue = std::stof(*uniform.defaultValue);
-                        backend_.setUniformFloat(pass.program, uniform.name, fvalue);
-                    } catch (...) {
-                        try {
-                            int ivalue = std::stoi(*uniform.defaultValue);
-                            backend_.setUniformInt(pass.program, uniform.name, ivalue);
-                        } catch (...) {
-                            spdlog::warn("Failed to parse default uniform '{}' value '{}'",
-                                       uniform.name, *uniform.defaultValue);
-                        }
-                    }
+                    applyUniform(backend_, pass.program, uniform.name, uniform.type, *uniform.defaultValue);
                 }
             }
 
@@ -275,17 +316,14 @@ uint32_t MultiPassRenderer::render(uint32_t inputTexture, uint32_t width, uint32
                 for (const auto& presetModule : currentPreset_->modules()) {
                     if (presetModule.moduleName == pass.moduleName) {
                         for (const auto& [name, value] : presetModule.uniformOverrides) {
-                            try {
-                                float fvalue = std::stof(value);
-                                backend_.setUniformFloat(pass.program, name, fvalue);
-                            } catch (...) {
-                                try {
-                                    int ivalue = std::stoi(value);
-                                    backend_.setUniformInt(pass.program, name, ivalue);
-                                } catch (...) {
-                                    spdlog::warn("Failed to parse uniform '{}' value '{}'", name, value);
+                            std::string type = "float";
+                            for (const auto& decl : module->metadata().uniforms) {
+                                if (decl.name == name) {
+                                    type = decl.type;
+                                    break;
                                 }
                             }
+                            applyUniform(backend_, pass.program, name, type, value);
                         }
                         break;
                     }

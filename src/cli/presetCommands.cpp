@@ -238,17 +238,21 @@ void PresetCommands::show(core::Registry& registry, const std::string& name) {
     size_t index = 0;
     for (const auto& module : preset->modules()) {
         std::cout << "  [" << index++ << "] " << module.moduleName;
-        if (!module.uniformOverrides.empty()) {
-            std::cout << utils::bold(" (overrides: ");
-            bool first = true;
-            for (const auto& [key, value] : module.uniformOverrides) {
-                if (!first) std::cout << ", ";
-                std::cout << key << "=" << value;
-                first = false;
-            }
-            std::cout << ")";
-        }
         std::cout << "\n";
+    }
+
+    std::map<std::string, std::string> totalOverrides;
+    for (const auto& module : preset->modules()) {
+        for (const auto& [key, value] : module.uniformOverrides) {
+            totalOverrides[key] = value;
+        }
+    }
+
+    if (!totalOverrides.empty()) {
+        std::cout << utils::bold("\nOverrides:\n");
+        for (const auto& [key, value] : totalOverrides) {
+            std::cout << "  " << key << " = " << value << "\n";
+        }
     }
 }
 

@@ -216,9 +216,7 @@ void PresetLoader::savePreset(const Preset& preset, const std::filesystem::path&
         file << "# Add modules and overrides to your preset\n";
         file << "# [[modules]]\n";
         file << "# name = \"brightness\"\n";
-        file << "#\n";
-        file << "# [modules.overrides]\n";
-        file << "# u_brightness = \"2.0\"\n";
+        file << "# overrides = { u_brightness = \"2.0\" }\n";
     }
 
     spdlog::info("Saved preset '{}' to {}", preset.name(), filePath.string());

@@ -195,6 +195,7 @@ void PresetLoader::savePreset(const Preset& preset, const std::filesystem::path&
 
             if (!module.uniformOverrides.empty()) {
                 toml::table overridesTable;
+                overridesTable.is_inline(true);
                 for (const auto& [key, value] : module.uniformOverrides) {
                     overridesTable.insert(key, value);
                 }
